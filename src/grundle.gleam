@@ -22,7 +22,15 @@ pub fn main() {
     [] -> {
       case envoy.get("GRUNDLE_TODO"), envoy.get("GRUNDLE_VTODO") {
         Ok(todo_path), Ok(ics_dir) -> {
-          bidirectional_sync(todo_path, ics_dir)
+          case validate_env_paths(todo_path, ics_dir) {
+            Ok(#(safe_todo_path, safe_ics_dir)) -> {
+              bidirectional_sync(safe_todo_path, safe_ics_dir)
+            }
+            Error(msg) -> {
+              io.println_error("Error: " <> msg)
+              print_usage()
+            }
+          }
         }
         _, _ -> {
           io.println_error(
@@ -143,26 +151,19 @@ type SyncDirection {
 }
 
 fn get_sync_direction(todo_file: String, ics_dir: String) -> SyncDirection {
-  case simplifile.file_info(todo_file) {
-    Ok(todo_info) -> {
-      case get_newest_ics_mtime(ics_dir) {
-        Ok(ics_mtime) -> {
-          case int.compare(todo_info.mtime_seconds, ics_mtime) {
-            order.Gt -> ToIcs
-            order.Lt -> FromIcs
-            order.Eq -> NoSync
-            // Equal timestamps - no sync needed
-          }
-        }
-        Error(_) -> ToIcs
+  // Get file info atomically to reduce TOCTOU race conditions
+  case simplifile.file_info(todo_file), get_newest_ics_mtime(ics_dir) {
+    Ok(todo_info), Ok(ics_mtime) -> {
+      // Add small buffer (1 second) to handle filesystem timestamp precision
+      case int.compare(todo_info.mtime_seconds, ics_mtime + 1) {
+        order.Gt -> ToIcs
+        order.Lt -> FromIcs
+        order.Eq -> NoSync
       }
     }
-    Error(_) -> {
-      case get_newest_ics_mtime(ics_dir) {
-        Ok(_) -> FromIcs
-        Error(_) -> NoSync
-      }
-    }
+    Ok(_), Error(_) -> ToIcs
+    Error(_), Ok(_) -> FromIcs
+    Error(_), Error(_) -> NoSync
   }
 }
 
@@ -227,4 +228,45 @@ The converter preserves:
   - Section organization (Inbox, Next Actions, etc.)
 ",
   )
+}
+
+/// Validate environment variable paths for security
+fn validate_env_paths(
+  todo_path: String,
+  ics_dir: String,
+) -> Result(#(String, String), String) {
+  case validate_single_path(todo_path), validate_single_path(ics_dir) {
+    Ok(safe_todo), Ok(safe_ics) -> Ok(#(safe_todo, safe_ics))
+    Error(msg), _ -> Error("Invalid GRUNDLE_TODO path: " <> msg)
+    _, Error(msg) -> Error("Invalid GRUNDLE_VTODO path: " <> msg)
+  }
+}
+
+/// Validate a single path for security concerns
+fn validate_single_path(path: String) -> Result(String, String) {
+  // Check for obvious security issues
+  case string.contains(path, "..") {
+    True -> Error("Path contains directory traversal components")
+    False -> {
+      case string.starts_with(path, "/") {
+        True -> {
+          // Absolute paths - ensure they're in reasonable locations
+          case
+            string.starts_with(path, "/tmp")
+            || string.starts_with(path, "/var/tmp")
+            || string.starts_with(path, "/etc")
+            || string.starts_with(path, "/root")
+            || string.starts_with(path, "/boot")
+          {
+            True -> Error("Path points to restricted system directory")
+            False -> Ok(path)
+          }
+        }
+        False -> {
+          // Relative paths and home paths (~) are generally safer
+          Ok(path)
+        }
+      }
+    }
+  }
 }

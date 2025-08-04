@@ -94,7 +94,8 @@ pub fn write_ics_file(
     Error(_) -> Error(InvalidItem("TodoItem validation failed"))
     Ok(valid_item) -> {
       let filename = get_filename_from_uid(valid_item.uid)
-      let filepath = directory <> "/" <> filename <> ".ics"
+      let safe_filename = sanitize_filename(filename)
+      let filepath = directory <> "/" <> safe_filename <> ".ics"
       let content = item_to_vtodo(valid_item)
 
       case simplifile.write(filepath, content) {
@@ -196,11 +197,53 @@ fn format_datetime(time: Time) -> String {
 }
 
 /// Format Time as iCalendar DATE (YYYYMMDD)
+/// Sanitize filename to prevent directory traversal
+fn sanitize_filename(filename: String) -> String {
+  filename
+  // Remove directory separators and dangerous characters
+  |> string.replace("/", "_")
+  |> string.replace("\\", "_")
+  |> string.replace("..", "dotdot")
+  |> string.replace(":", "_")
+  |> string.replace("*", "_")
+  |> string.replace("?", "_")
+  |> string.replace("\"", "_")
+  |> string.replace("<", "_")
+  |> string.replace(">", "_")
+  |> string.replace("|", "_")
+  |> string.replace("\n", "_")
+  |> string.replace("\r", "_")
+  |> string.replace("\t", "_")
+  // Ensure not empty and doesn't start with dangerous patterns
+  |> fn(name) {
+    case name {
+      "" -> "default_task"
+      name -> {
+        case string.starts_with(name, ".") {
+          True -> "task_" <> name
+          False -> name
+        }
+      }
+    }
+  }
+  // Limit length
+  |> string.slice(0, 100)
+}
+
 fn format_date(time: Time) -> String {
   // Convert to ISO date and remove hyphens
   birl.to_iso8601(time)
   |> string.split("T")
   |> list.first()
-  |> result.unwrap("2024-01-01")
+  |> result.unwrap(get_current_date_fallback())
   |> string.replace("-", "")
+}
+
+/// Get current date as fallback instead of hardcoded year
+fn get_current_date_fallback() -> String {
+  birl.utc_now()
+  |> birl.to_iso8601()
+  |> string.split("T")
+  |> list.first()
+  |> result.unwrap("2024-01-01")
 }

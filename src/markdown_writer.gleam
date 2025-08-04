@@ -205,10 +205,7 @@ fn backup_existing_file(path: String) -> Result(Nil, WriteError) {
                 |> birl.to_iso8601()
                 |> string.replace(":", "-")
                 |> string.replace(".", "-")
-              let safe_filename =
-                path
-                |> string.replace("/", "_")
-                |> string.replace("~", "home")
+              let safe_filename = sanitize_filename_for_backup(path)
               let backup_path =
                 cache_dir <> "/" <> safe_filename <> ".backup." <> timestamp
               case simplifile.copy_file(at: path, to: backup_path) {
@@ -286,6 +283,38 @@ fn ensure_cache_directory() -> Result(String, WriteError) {
     Error(_) ->
       Error(WriteFailure(cache_dir, "Failed to create cache directory"))
   }
+}
+
+/// Sanitize filename for backup to prevent path traversal
+fn sanitize_filename_for_backup(path: String) -> String {
+  path
+  // Remove directory separators and path components
+  |> string.replace("/", "_")
+  |> string.replace("\\", "_")
+  |> string.replace("..", "dotdot")
+  |> string.replace("~", "home")
+  // Remove other potentially dangerous characters
+  |> string.replace(":", "_")
+  |> string.replace("*", "_")
+  |> string.replace("?", "_")
+  |> string.replace("\"", "_")
+  |> string.replace("<", "_")
+  |> string.replace(">", "_")
+  |> string.replace("|", "_")
+  // Ensure filename isn't empty and doesn't start with dangerous patterns
+  |> fn(filename) {
+    case filename {
+      "" -> "unknown_file"
+      filename -> {
+        case string.starts_with(filename, ".") {
+          True -> "hidden_" <> filename
+          False -> filename
+        }
+      }
+    }
+  }
+  // Truncate if too long to prevent filesystem issues
+  |> string.slice(0, 200)
 }
 
 /// Generate footer with GTD context reference

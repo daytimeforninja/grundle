@@ -9,6 +9,7 @@ import gleam/int
 import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/string
 import simplifile
 import todo_item.{type TodoItem, TodoItem}
@@ -45,46 +46,85 @@ pub fn parse_ics_content(content: String) -> Result(TodoItem, ParseError) {
 pub fn parse_ics_directory(
   directory: String,
 ) -> Result(List(TodoItem), ParseError) {
-  case simplifile.read_directory(directory) {
-    Ok(files) -> {
-      files
-      |> list.filter(fn(filename) {
-        string.ends_with(filename, ".ics")
-        && !string.contains(filename, "/")
-        && !string.contains(filename, "\\")
-        && !string.contains(filename, "..")
-        && !string.starts_with(filename, ".")
-      })
-      |> list.fold([], fn(acc, filename) {
-        case parse_ics_file(directory <> "/" <> filename) {
-          Ok(item) -> [item, ..acc]
-          Error(err) -> {
-            // Log parse errors for debugging
-            case err {
-              FileNotFound(path) ->
-                io.println_error("Warning: Could not read file " <> path)
-              InvalidFormat(msg) ->
-                io.println_error(
-                  "Warning: Invalid format in " <> filename <> ": " <> msg,
-                )
-              MissingRequiredField(field) ->
-                io.println_error(
-                  "Warning: Missing field in " <> filename <> ": " <> field,
-                )
-              DateParseError(msg) ->
-                io.println_error(
-                  "Warning: Date parse error in " <> filename <> ": " <> msg,
-                )
+  parse_ics_directory_with_mode(directory, False)
+}
+
+/// Parse entire directory of .ics files with configurable error handling
+pub fn parse_ics_directory_strict(
+  directory: String,
+) -> Result(List(TodoItem), ParseError) {
+  parse_ics_directory_with_mode(directory, True)
+}
+
+/// Internal function with configurable error handling mode
+fn parse_ics_directory_with_mode(
+  directory: String,
+  strict_mode: Bool,
+) -> Result(List(TodoItem), ParseError) {
+  // Validate and sanitize directory path to prevent traversal
+  case validate_directory_path(directory) {
+    Error(err) -> Error(err)
+    Ok(safe_directory) -> {
+      case simplifile.read_directory(safe_directory) {
+        Ok(files) -> {
+          files
+          |> list.filter(fn(filename) {
+            string.ends_with(filename, ".ics")
+            && !string.contains(filename, "/")
+            && !string.contains(filename, "\\")
+            && !string.contains(filename, "..")
+            && !string.starts_with(filename, ".")
+          })
+          |> list.try_fold([], fn(acc, filename) {
+            case parse_ics_file(safe_directory <> "/" <> filename) {
+              Ok(item) -> Ok([item, ..acc])
+              Error(err) -> {
+                case strict_mode {
+                  True ->
+                    // In strict mode, propagate the error immediately
+                    Error(err)
+                  False -> {
+                    // Log parse errors for debugging but continue processing
+                    case err {
+                      FileNotFound(path) ->
+                        io.println_error(
+                          "Warning: Could not read file "
+                          <> sanitize_path_for_log(path),
+                        )
+                      InvalidFormat(msg) ->
+                        io.println_error(
+                          "Warning: Invalid format in "
+                          <> sanitize_filename_for_log(filename)
+                          <> ": "
+                          <> sanitize_error_message(msg),
+                        )
+                      MissingRequiredField(field) ->
+                        io.println_error(
+                          "Warning: Missing field in "
+                          <> sanitize_filename_for_log(filename)
+                          <> ": "
+                          <> sanitize_error_message(field),
+                        )
+                      DateParseError(msg) ->
+                        io.println_error(
+                          "Warning: Date parse error in "
+                          <> sanitize_filename_for_log(filename)
+                          <> ": "
+                          <> sanitize_error_message(msg),
+                        )
+                    }
+                    Ok(acc)
+                    // Skip files that fail to parse
+                  }
+                }
+              }
             }
-            acc
-            // Skip files that fail to parse
-          }
+          })
+          |> result.map(list.reverse)
         }
-      })
-      |> list.reverse()
-      |> Ok()
+        Error(_) -> Error(FileNotFound(safe_directory))
+      }
     }
-    Error(_) -> Error(FileNotFound(directory))
   }
 }
 
@@ -236,20 +276,33 @@ fn parse_ics_date(date_str: String) -> Option(Time) {
 
       case int.parse(year_str), int.parse(month_str), int.parse(day_str) {
         Ok(year), Ok(month), Ok(day) -> {
-          let month_padded = case month < 10 {
-            True -> "0" <> int.to_string(month)
-            False -> int.to_string(month)
-          }
-          let day_padded = case day < 10 {
-            True -> "0" <> int.to_string(day)
-            False -> int.to_string(day)
-          }
-          let date_string =
-            int.to_string(year) <> "-" <> month_padded <> "-" <> day_padded
+          // Validate date components before creating Time
+          case
+            year >= 1900
+            && year <= 3000
+            && month >= 1
+            && month <= 12
+            && day >= 1
+            && is_valid_day_for_month(year, month, day)
+          {
+            True -> {
+              let month_padded = case month < 10 {
+                True -> "0" <> int.to_string(month)
+                False -> int.to_string(month)
+              }
+              let day_padded = case day < 10 {
+                True -> "0" <> int.to_string(day)
+                False -> int.to_string(day)
+              }
+              let date_string =
+                int.to_string(year) <> "-" <> month_padded <> "-" <> day_padded
 
-          case birl.from_naive(date_string) {
-            Ok(time) -> Some(time)
-            Error(_) -> None
+              case birl.from_naive(date_string) {
+                Ok(time) -> Some(time)
+                Error(_) -> None
+              }
+            }
+            False -> None
           }
         }
         _, _, _ -> None
@@ -285,24 +338,43 @@ fn parse_ics_datetime(datetime_str: String) -> Option(Time) {
         int.parse(minute_str),
         int.parse(second_str)
       {
-        Ok(year), Ok(month), Ok(day), Ok(_hour), Ok(_minute), Ok(_second) -> {
-          let month_padded = case month < 10 {
-            True -> "0" <> int.to_string(month)
-            False -> int.to_string(month)
-          }
-          let day_padded = case day < 10 {
-            True -> "0" <> int.to_string(day)
-            False -> int.to_string(day)
-          }
-          let date_string =
-            int.to_string(year) <> "-" <> month_padded <> "-" <> day_padded
+        Ok(year), Ok(month), Ok(day), Ok(hour), Ok(minute), Ok(second) -> {
+          // Validate all date and time components
+          case
+            year >= 1900
+            && year <= 3000
+            && month >= 1
+            && month <= 12
+            && day >= 1
+            && is_valid_day_for_month(year, month, day)
+            && hour >= 0
+            && hour <= 23
+            && minute >= 0
+            && minute <= 59
+            && second >= 0
+            && second <= 59
+          {
+            True -> {
+              let month_padded = case month < 10 {
+                True -> "0" <> int.to_string(month)
+                False -> int.to_string(month)
+              }
+              let day_padded = case day < 10 {
+                True -> "0" <> int.to_string(day)
+                False -> int.to_string(day)
+              }
+              let date_string =
+                int.to_string(year) <> "-" <> month_padded <> "-" <> day_padded
 
-          case birl.from_naive(date_string) {
-            Ok(date_time) -> {
-              // Add time components (simplified approach)
-              Some(date_time)
+              case birl.from_naive(date_string) {
+                Ok(date_time) -> {
+                  // Add time components (simplified approach)
+                  Some(date_time)
+                }
+                Error(_) -> None
+              }
             }
-            Error(_) -> None
+            False -> None
           }
         }
         _, _, _, _, _, _ -> None
@@ -310,6 +382,97 @@ fn parse_ics_datetime(datetime_str: String) -> Option(Time) {
     }
     Error(_) -> None
   }
+}
+
+/// Check if a day is valid for the given month and year
+fn is_valid_day_for_month(year: Int, month: Int, day: Int) -> Bool {
+  case day >= 1 {
+    False -> False
+    True -> {
+      let max_day = case month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 -> 31
+        4 | 6 | 9 | 11 -> 30
+        2 -> {
+          // Check for leap year
+          case year % 4 == 0 && { year % 100 != 0 || year % 400 == 0 } {
+            True -> 29
+            False -> 28
+          }
+        }
+        _ -> 0
+      }
+      day <= max_day
+    }
+  }
+}
+
+/// Validate directory path to prevent traversal attacks
+fn validate_directory_path(directory: String) -> Result(String, ParseError) {
+  // Check for obvious path traversal attempts
+  case string.contains(directory, "..") || string.contains(directory, "~") {
+    True ->
+      Error(InvalidFormat(
+        "Invalid directory path contains traversal components",
+      ))
+    False -> {
+      // Additional validation - ensure path doesn't contain dangerous patterns
+      case
+        string.starts_with(directory, "/") || string.contains(directory, "\\")
+      {
+        True -> {
+          // For absolute paths, ensure they're within reasonable bounds
+          // This is a basic check - in production you'd want more sophisticated validation
+          case
+            string.starts_with(directory, "/tmp")
+            || string.starts_with(directory, "/var/tmp")
+            || string.starts_with(directory, "/home")
+          {
+            True -> Ok(directory)
+            False ->
+              Error(InvalidFormat("Directory path not in allowed locations"))
+          }
+        }
+        False -> {
+          // Relative paths are generally safer but still validate
+          Ok(directory)
+        }
+      }
+    }
+  }
+}
+
+/// Sanitize file paths for logging to prevent log injection
+fn sanitize_path_for_log(path: String) -> String {
+  path
+  |> string.replace("\n", "\\n")
+  |> string.replace("\r", "\\r")
+  |> string.replace("\t", "\\t")
+  |> string.slice(0, 200)
+  // Limit length
+}
+
+/// Sanitize filenames for logging
+fn sanitize_filename_for_log(filename: String) -> String {
+  filename
+  |> string.replace("\n", "\\n")
+  |> string.replace("\r", "\\r")
+  |> string.replace("\t", "\\t")
+  |> string.slice(0, 100)
+  // Limit length
+}
+
+/// Sanitize error messages to prevent information leakage
+fn sanitize_error_message(msg: String) -> String {
+  msg
+  |> string.replace("\n", "\\n")
+  |> string.replace("\r", "\\r")
+  |> string.replace("\t", "\\t")
+  // Remove potential sensitive patterns
+  |> string.replace("/home/", "/[HOME]/")
+  |> string.replace("/usr/", "/[USR]/")
+  |> string.replace("/etc/", "/[ETC]/")
+  |> string.slice(0, 150)
+  // Limit length
 }
 
 /// Unescape iCalendar text format (reverse of escape_text)

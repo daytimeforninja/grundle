@@ -6,6 +6,7 @@
 
 import birl.{type Time}
 import gleam/int
+import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/regexp
@@ -81,10 +82,30 @@ fn process_line(state: ParseState, line: String) -> ParseState {
             True -> {
               case state.current_item {
                 Some(item) -> {
-                  let note_text = extract_note_text(line)
-                  let updated_item =
-                    TodoItem(..item, notes: [note_text, ..item.notes])
-                  ParseState(..state, current_item: Some(updated_item))
+                  // Limit note count and length to prevent resource exhaustion
+                  case list.length(item.notes) >= 100 {
+                    True -> {
+                      // Log warning and skip additional notes
+                      io.println_error(
+                        "Warning: Maximum note limit (100) reached for task, skipping additional notes",
+                      )
+                      state
+                    }
+                    False -> {
+                      let note_text = extract_note_text(line)
+                      // Limit individual note length
+                      let truncated_note = case
+                        string.length(note_text) > 1000
+                      {
+                        True ->
+                          string.slice(note_text, 0, 1000) <> "... (truncated)"
+                        False -> note_text
+                      }
+                      let updated_item =
+                        TodoItem(..item, notes: [truncated_note, ..item.notes])
+                      ParseState(..state, current_item: Some(updated_item))
+                    }
+                  }
                 }
                 None -> state
               }
