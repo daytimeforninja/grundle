@@ -1,10 +1,16 @@
 # Gleam build artifacts
 /build/
-/manifest.toml
+/dist/
+# Keep manifest.toml for nix-gleam compatibility
+# /manifest.toml
 
 # Nix build results
 result
 result-*
+
+# Test files
+test_*.md
+*_test.md
 
 # Editor files
 .vscode/

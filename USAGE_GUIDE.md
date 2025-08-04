@@ -4,7 +4,7 @@
 
 ### 1. Build the Gleam Project
 ```bash
-cd /path/to/todo-converter
+cd /path/to/grundle
 gleam build
 gleam export erlang-shipment
 ```
@@ -12,19 +12,19 @@ gleam export erlang-shipment
 ### 2. Create Executable Script
 ```bash
 # Create a wrapper script for easy execution
-cat > todo-converter << 'EOF'
+cat > grundle << 'EOF'
 #!/bin/bash
 cd "$(dirname "$0")"
 gleam run -- "$@"
 EOF
 
-chmod +x todo-converter
+chmod +x grundle
 ```
 
 ### 3. Add to PATH (Optional)
 ```bash
 # Add to your ~/.bashrc or ~/.zshrc
-export PATH="$PATH:/path/to/todo-converter"
+export PATH="$PATH:/path/to/grundle"
 ```
 
 ## Basic Usage
@@ -32,10 +32,10 @@ export PATH="$PATH:/path/to/todo-converter"
 ### Command Syntax
 ```bash
 # Convert markdown to ICS files
-todo-converter todo.md --to-ics output_directory/
+grundle todo.md --to-ics output_directory/
 
 # Convert ICS files back to markdown  
-todo-converter --from-ics input_directory/ todo.md
+grundle --from-ics input_directory/ todo.md
 ```
 
 ## Workflow Examples
@@ -60,7 +60,7 @@ todo-converter --from-ics input_directory/ todo.md
 **Convert to see VTODO format:**
 ```bash
 # Create ICS files to inspect CalDAV format
-todo-converter todo.md --to-ics ./ics-output/
+grundle todo.md --to-ics ./ics-output/
 ls ./ics-output/
 # Results:
 # a84cb35cde77.ics  (mx2 server task)
@@ -127,13 +127,13 @@ vdirsyncer metasync
 ```bash
 # Morning: Get latest from CalDAV server
 vdirsyncer sync
-todo-converter --from-ics ~/.calendars/todos/ todo.md
+grundle --from-ics ~/.calendars/todos/ todo.md
 
 # Edit your todo.md throughout the day
 vim todo.md  # or your preferred editor
 
 # Evening: Push changes to CalDAV server
-todo-converter todo.md --to-ics ~/.calendars/todos/
+grundle todo.md --to-ics ~/.calendars/todos/
 vdirsyncer sync
 ```
 
@@ -142,12 +142,12 @@ vdirsyncer sync
 **Setup shared CalDAV calendar:**
 ```bash
 # Each team member runs:
-todo-converter shared-todos.md --to-ics ~/.calendars/shared-todos/
+grundle shared-todos.md --to-ics ~/.calendars/shared-todos/
 vdirsyncer sync
 
 # Others can pull updates:
 vdirsyncer sync  
-todo-converter --from-ics ~/.calendars/shared-todos/ shared-todos.md
+grundle --from-ics ~/.calendars/shared-todos/ shared-todos.md
 ```
 
 **Collaborative workflow:**
@@ -162,13 +162,13 @@ todo-converter --from-ics ~/.calendars/shared-todos/ shared-todos.md
 **Organize by context:**
 ```bash
 # Work todos
-todo-converter work-todos.md --to-ics ~/.calendars/work-todos/
+grundle work-todos.md --to-ics ~/.calendars/work-todos/
 
 # Personal todos  
-todo-converter personal-todos.md --to-ics ~/.calendars/personal-todos/
+grundle personal-todos.md --to-ics ~/.calendars/personal-todos/
 
 # Project-specific todos
-todo-converter project-x-todos.md --to-ics ~/.calendars/project-x/
+grundle project-x-todos.md --to-ics ~/.calendars/project-x/
 ```
 
 ### Automation Scripts
@@ -185,7 +185,7 @@ echo "Syncing todos..."
 
 # Pull from CalDAV
 vdirsyncer sync
-todo-converter --from-ics "$CALDAV_DIR" "$TODO_DIR/todo.md"
+grundle --from-ics "$CALDAV_DIR" "$TODO_DIR/todo.md"
 
 echo "✓ Downloaded latest todos to $TODO_DIR/todo.md"
 echo "Edit your todos, then run 'push-todos' to sync back"
@@ -202,7 +202,7 @@ CALDAV_DIR="$HOME/.calendars/todos"
 echo "Pushing todos..."
 
 # Convert and push to CalDAV
-todo-converter "$TODO_DIR/todo.md" --to-ics "$CALDAV_DIR"
+grundle "$TODO_DIR/todo.md" --to-ics "$CALDAV_DIR"
 vdirsyncer sync
 
 echo "✓ Pushed todos to CalDAV server"
@@ -273,11 +273,11 @@ autocmd BufWritePost todo.md !push-todos &
 gleam --version
 
 # Build the project
-cd /path/to/todo-converter
+cd /path/to/grundle
 gleam build
 
 # Use full path if not in PATH
-/path/to/todo-converter/todo-converter todo.md --to-ics ./output/
+/path/to/grundle/grundle todo.md --to-ics ./output/
 ```
 
 **vdirsyncer sync errors:**
@@ -297,7 +297,7 @@ vdirsyncer sync --verbosity DEBUG
 ```bash
 # Test with simple todo first
 echo "- [ ] Test task" > test.md
-todo-converter test.md --to-ics ./test-output/
+grundle test.md --to-ics ./test-output/
 
 # Check output for errors
 ls -la ./test-output/
@@ -310,8 +310,8 @@ cat ./test-output/*.ics
 ```bash
 # Original → ICS → Back to markdown
 cp todo.md todo-original.md
-todo-converter todo.md --to-ics ./temp-ics/
-todo-converter --from-ics ./temp-ics/ todo-restored.md
+grundle todo.md --to-ics ./temp-ics/
+grundle --from-ics ./temp-ics/ todo-restored.md
 
 # Compare (should be semantically equivalent)
 diff todo-original.md todo-restored.md

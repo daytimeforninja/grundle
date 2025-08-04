@@ -4,53 +4,33 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    nix-gleam.url = "github:arnarg/nix-gleam";
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, flake-utils, nix-gleam }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
-        
-        grundle = pkgs.stdenv.mkDerivation rec {
-          pname = "grundle";
-          version = "0.1.0";
-
-          src = ./.;
-
-          nativeBuildInputs = with pkgs; [
-            gleam
-            erlang
-          ];
-
-          buildPhase = ''
-            gleam export erlang-shipment
-          '';
-
-          installPhase = ''
-            mkdir -p $out/bin
-            cp -r build/erlang-shipment $out/lib/grundle
-            
-            # Create wrapper script
-            cat > $out/bin/grundle << 'EOF'
-#!/bin/bash
-exec ${pkgs.erlang}/bin/erl -noshell -pa $out/lib/grundle/*/ebin -s grundle main -s init stop -- "$@"
-EOF
-            chmod +x $out/bin/grundle
-          '';
-
-          meta = with pkgs.lib; {
-            description = "Convert GTD-style markdown todos to CalDAV-compatible VTODO format";
-            homepage = "https://github.com/your-username/grundle";
-            license = licenses.mit;
-            maintainers = [ /* your maintainer info */ ];
-            platforms = platforms.unix;
-          };
+        pkgs = import nixpkgs {
+          inherit system;
+          overlays = [ nix-gleam.overlays.default ];
         };
       in
       {
         packages = {
-          default = grundle;
-          grundle = grundle;
+          default = pkgs.buildGleamApplication {
+            src = ./.;
+            # pname and version automatically read from gleam.toml
+            # target = "erlang"; # default
+            
+            meta = with pkgs.lib; {
+              description = "Convert GTD-style markdown todos to CalDAV-compatible VTODO format";
+              homepage = "https://github.com/your-username/grundle";
+              license = licenses.mit;
+              maintainers = [ /* your maintainer info */ ];
+              platforms = platforms.unix;
+            };
+          };
+          grundle = self.packages.${system}.default;
         };
 
         devShells.default = pkgs.mkShell {
@@ -71,7 +51,7 @@ EOF
 
         apps.default = {
           type = "app";
-          program = "${grundle}/bin/grundle";
+          program = "${self.packages.${system}.default}/bin/grundle";
         };
       });
 }

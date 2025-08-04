@@ -10,6 +10,7 @@ stdenv.mkDerivation rec {
   nativeBuildInputs = [ gleam erlang ];
 
   buildPhase = ''
+    gleam build
     gleam export erlang-shipment
   '';
 
@@ -17,10 +18,11 @@ stdenv.mkDerivation rec {
     mkdir -p $out/bin
     cp -r build/erlang-shipment $out/lib/grundle
     
-    # Create wrapper script
+    # Create wrapper script (same as Makefile approach)
     cat > $out/bin/grundle << EOF
-#!/bin/bash
-exec ${erlang}/bin/erl -noshell -pa $out/lib/grundle/*/ebin -s grundle main -s init stop -- "\$@"
+#!/usr/bin/env bash
+GRUNDLE_LIB="$out/lib/grundle"
+exec ${erlang}/bin/erl -noshell -pa "\$GRUNDLE_LIB"/*/ebin -s grundle main -s init stop -- "\$@"
 EOF
     chmod +x $out/bin/grundle
   '';

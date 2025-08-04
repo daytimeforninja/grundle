@@ -18,16 +18,16 @@ This program solves a simple but important problem: bridging the gap between pla
 # GTD Todo List
 
 ## Next Actions
-- [ ] Decom virtual post mail @computer
-- [ ] Build out mx2 @computer
-- [ ] Check in on garage @home
+- [ ] Review project documentation @computer
+- [ ] Call dentist for appointment @phone
+- [ ] Buy groceries @errands
 
 ## Waiting For  
-- [ ] Lawyer chat (IN PROGRESS) @waiting
-  - Called Jorge
+- [ ] Response from client about proposal @waiting
+  - Sent proposal on Monday
 
 ## Someday/Maybe
-- [ ] Figure out hardware for new home automation @computer
+- [ ] Learn Spanish @personal
 ```
 
 ### Output: iCalendar VTODO Format
@@ -38,7 +38,7 @@ PRODID:-//Todo.md Sync//EN
 CALSCALE:GREGORIAN
 BEGIN:VTODO
 UID:a84cb35cde77@todo-md-sync
-SUMMARY:Decom virtual post mail
+SUMMARY:Review project documentation
 STATUS:NEEDS-ACTION
 CATEGORIES:Next Actions
 LOCATION:computer
@@ -140,10 +140,10 @@ TodoItem.start_date   → DTSTART;VALUE=DATE
 **Commands**:
 ```bash
 # Convert todo.md to ICS files
-todo-converter todo.md --to-ics output_dir/
+grundle todo.md --to-ics output_dir/
 
 # Convert ICS files back to todo.md  
-todo-converter --from-ics input_dir/ output.md
+grundle --from-ics input_dir/ output.md
 ```
 
 ## Data Flow and Transformations
@@ -186,7 +186,7 @@ Where: semantic_equivalence(original, reconstructed) = True
 - **Requirement**: Same task content must generate identical UID across conversions
 - **Implementation**: SHA256 hash of `"#{section}:#{summary}"` 
 - **Format**: `{12-char-hex}@todo-md-sync`
-- **Example**: `"Next Actions:Build out mx2"` → `"a84cb35cde77@todo-md-sync"`
+- **Example**: `"Next Actions:Review project documentation"` → `"a84cb35cde77@todo-md-sync"`
 
 ### Date Parsing Intelligence
 - **MM/DD Format**: `"7/25"` → Date with smart year inference
@@ -267,13 +267,13 @@ Where: semantic_equivalence(original, reconstructed) = True
 ### Typical Workflow
 ```bash
 # 1. Convert local todo.md to ICS files
-todo-converter todo.md --to-ics ~/.calendars/tasks/
+grundle todo.md --to-ics ~/.calendars/tasks/
 
 # 2. Sync with CalDAV server  
 vdirsyncer sync
 
 # 3. Convert updated ICS files back to todo.md
-todo-converter --from-ics ~/.calendars/tasks/ todo.md
+grundle --from-ics ~/.calendars/tasks/ todo.md
 ```
 
 ### File Organization
@@ -319,6 +319,13 @@ nix run github:your-username/grundle -- --help
 ### Using Legacy Nix
 ```bash
 nix-env -i -f https://github.com/your-username/grundle/archive/main.tar.gz
+```
+
+### Building with Make
+```bash
+git clone https://github.com/your-username/grundle.git
+cd grundle
+make build
 ```
 
 ### Development

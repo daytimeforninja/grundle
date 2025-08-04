@@ -62,7 +62,7 @@ pub type TodoItem {
 /// - UIDs remain stable across format conversions
 /// 
 /// Format: {12-char-hex}@todo-md-sync
-/// Example: "Next Actions:Build out mx2" → "a84cb35cde77@todo-md-sync"
+/// Example: "Next Actions:Review project documentation" → "a84cb35cde77@todo-md-sync"
 pub fn generate_uid(summary: String, section: String) -> String
 ```
 
