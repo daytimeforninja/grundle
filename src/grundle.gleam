@@ -7,7 +7,10 @@
 import gleam/io
 import gleam/list
 import gleam/int
+import gleam/string
 import argv
+import simplifile
+import envoy
 import markdown_parser
 import vtodo_generator
 import vtodo_parser
@@ -15,7 +18,17 @@ import markdown_writer
 
 pub fn main() {
   case argv.load().arguments {
-    [] -> print_usage()
+    [] -> {
+      case envoy.get("GRUNDLE_TODO"), envoy.get("GRUNDLE_VTODO") {
+        Ok(todo_path), Ok(ics_dir) -> {
+          bidirectional_sync(todo_path, ics_dir)
+        }
+        _, _ -> {
+          io.println_error("Error: GRUNDLE_TODO and GRUNDLE_VTODO environment variables must be set")
+          print_usage()
+        }
+      }
+    }
     ["--help"] -> print_usage()
     ["-h"] -> print_usage()
     
@@ -92,6 +105,72 @@ fn convert_from_ics(input_dir: String, output_file: String) -> Nil {
   }
 }
 
+fn bidirectional_sync(todo_file: String, ics_dir: String) -> Nil {
+  case get_sync_direction(todo_file, ics_dir) {
+    ToIcs -> {
+      io.println("Syncing " <> todo_file <> " → " <> ics_dir <> " (markdown newer)")
+      convert_to_ics(todo_file, ics_dir)
+    }
+    FromIcs -> {
+      io.println("Syncing " <> ics_dir <> " → " <> todo_file <> " (ics files newer)")
+      convert_from_ics(ics_dir, todo_file)
+    }
+    NoSync -> {
+      io.println("No sync needed - files are up to date")
+    }
+  }
+}
+
+type SyncDirection {
+  ToIcs
+  FromIcs
+  NoSync
+}
+
+fn get_sync_direction(todo_file: String, ics_dir: String) -> SyncDirection {
+  case simplifile.file_info(todo_file) {
+    Ok(todo_info) -> {
+      case get_newest_ics_mtime(ics_dir) {
+        Ok(ics_mtime) -> {
+          case todo_info.mtime_seconds > ics_mtime {
+            True -> ToIcs
+            False -> FromIcs
+          }
+        }
+        Error(_) -> ToIcs
+      }
+    }
+    Error(_) -> {
+      case get_newest_ics_mtime(ics_dir) {
+        Ok(_) -> FromIcs
+        Error(_) -> NoSync
+      }
+    }
+  }
+}
+
+fn get_newest_ics_mtime(ics_dir: String) -> Result(Int, simplifile.FileError) {
+  case simplifile.read_directory(ics_dir) {
+    Ok(files) -> {
+      files
+      |> list.filter(fn(file) { file |> string.ends_with(".ics") })
+      |> list.map(fn(file) { ics_dir <> "/" <> file })
+      |> list.fold(Ok(0), fn(acc, file_path) {
+        case acc {
+          Ok(max_mtime) -> {
+            case simplifile.file_info(file_path) {
+              Ok(info) -> Ok(int.max(max_mtime, info.mtime_seconds))
+              Error(err) -> Error(err)
+            }
+          }
+          Error(err) -> Error(err)
+        }
+      })
+    }
+    Error(err) -> Error(err)
+  }
+}
+
 fn print_usage() -> Nil {
   io.println("
 grundle
@@ -99,20 +178,28 @@ grundle
 Convert between todo.md format and iCalendar VTODO format for CalDAV sync.
 
 Usage:
-  grundle <todo.md> --to-ics <output_dir>
-  grundle --from-ics <input_dir> <output.md>
+  grundle                                    # Bidirectional sync (newest wins)
+  grundle <todo.md> --to-ics <output_dir>   # Convert markdown to ICS
+  grundle --from-ics <input_dir> <output.md> # Convert ICS to markdown
+
+Environment variables (required for bidirectional sync):
+  GRUNDLE_TODO    Path to todo.md file
+  GRUNDLE_VTODO   Path to vdirsyncer calendar directory
 
 Examples:
-  # Convert todo.md to ICS files for vdirsyncer
-  grundle todo.md --to-ics ~/.calendars/tasks/
+  # Set up environment and run bidirectional sync
+  export GRUNDLE_TODO=~/Documents/todo.md
+  export GRUNDLE_VTODO=~/.calendars/tasks
+  grundle
   
-  # Convert ICS files back to todo.md after CalDAV sync
+  # Manual conversions (no env vars needed)
+  grundle todo.md --to-ics ~/.calendars/tasks/
   grundle --from-ics ~/.calendars/tasks/ todo.md
 
 Workflow with vdirsyncer:
-  1. grundle todo.md --to-ics ~/.calendars/tasks/
-  2. vdirsyncer sync
-  3. grundle --from-ics ~/.calendars/tasks/ todo.md
+  1. grundle                    # Sync local changes to ICS
+  2. vdirsyncer sync           # Sync with CalDAV server  
+  3. grundle                    # Sync server changes back to markdown
 
 The converter preserves:
   - Task completion status
