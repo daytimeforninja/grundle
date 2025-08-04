@@ -9,8 +9,10 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/dict.{type Dict}
 import gleam/int
+import gleam/result
 import birl.{type Time}
 import simplifile
+import envoy
 import todo_item.{type TodoItem}
 
 pub type WriteError {
@@ -27,12 +29,18 @@ const section_order = [
   "Completed"
 ]
 
-/// Write TodoItems to markdown file
+/// Write TodoItems to markdown file with automatic backup
 pub fn write_items_to_file(items: List(TodoItem), path: String) -> Result(Nil, WriteError) {
-  let content = generate_content(items)
-  case simplifile.write(path, content) {
-    Ok(_) -> Ok(Nil)
-    Error(_) -> Error(WriteFailure(path, "Failed to write markdown file"))
+  // Create backup if file exists
+  case backup_existing_file(path) {
+    Error(err) -> Error(err)
+    Ok(_) -> {
+      let content = generate_content(items)
+      case simplifile.write(path, content) {
+        Ok(_) -> Ok(Nil)
+        Error(_) -> Error(WriteFailure(path, "Failed to write markdown file"))
+      }
+    }
   }
 }
 
@@ -163,6 +171,92 @@ fn format_date_for_markdown(time: Time) -> String {
       }
     }
     Error(_) -> "1/1"  // fallback
+  }
+}
+
+/// Create timestamped backup of existing file in ~/.cache/grundle
+fn backup_existing_file(path: String) -> Result(Nil, WriteError) {
+  case simplifile.is_file(path) {
+    Ok(True) -> {
+      // Ensure cache directory exists
+      case ensure_cache_directory() {
+        Error(err) -> Error(err)
+        Ok(cache_dir) -> {
+          // Clean up old backups first to maintain 5-backup limit
+          case cleanup_old_backups(path, cache_dir) {
+            Error(err) -> Error(err)
+            Ok(_) -> {
+              // Create new backup with timestamp and safe filename
+              let timestamp = birl.utc_now() 
+                |> birl.to_iso8601() 
+                |> string.replace(":", "-")
+                |> string.replace(".", "-")
+              let safe_filename = path
+                |> string.replace("/", "_")
+                |> string.replace("~", "home")
+              let backup_path = cache_dir <> "/" <> safe_filename <> ".backup." <> timestamp
+              case simplifile.copy_file(at: path, to: backup_path) {
+                Ok(_) -> Ok(Nil)
+                Error(_) -> Error(WriteFailure(backup_path, "Failed to create backup"))
+              }
+            }
+          }
+        }
+      }
+    }
+    _ -> Ok(Nil)  // File doesn't exist or error checking, skip backup
+  }
+}
+
+/// Keep only the 5 most recent backups in cache directory
+fn cleanup_old_backups(original_path: String, cache_dir: String) -> Result(Nil, WriteError) {
+  case simplifile.read_directory(cache_dir) {
+    Ok(files) -> {
+      // Create safe filename pattern to match backups for this file
+      let safe_filename = original_path
+        |> string.replace("/", "_")
+        |> string.replace("~", "home")
+      let backup_pattern = safe_filename <> ".backup."
+      
+      let backup_files = files
+        |> list.filter(fn(file) { string.starts_with(file, backup_pattern) })
+        |> list.sort(string.compare)
+        |> list.reverse()  // Most recent first
+      
+      // Remove oldest backups if we have more than 4 (keeping 5 total)
+      case list.drop(backup_files, 4) {
+        [] -> Ok(Nil)  // 4 or fewer backups, nothing to clean
+        old_backups -> {
+          old_backups
+          |> list.try_each(fn(backup_file) {
+            let backup_path = cache_dir <> "/" <> backup_file
+            case simplifile.delete(backup_path) {
+              Ok(_) -> Ok(Nil)
+              Error(_) -> Error(WriteFailure(backup_path, "Failed to delete old backup"))
+            }
+          })
+          |> result.replace(Nil)
+        }
+      }
+    }
+    Error(_) -> Ok(Nil)  // Cache directory doesn't exist, nothing to clean
+  }
+}
+
+/// Ensure ~/.cache/grundle directory exists and return its path
+fn ensure_cache_directory() -> Result(String, WriteError) {
+  // Try to get HOME environment variable, fallback to current directory
+  let home_dir = case envoy.get("HOME") {
+    Ok(home) -> home
+    Error(_) -> "."
+  }
+  
+  let cache_dir = home_dir <> "/.cache/grundle"
+  
+  // Create cache directory if it doesn't exist
+  case simplifile.create_directory_all(cache_dir) {
+    Ok(_) -> Ok(cache_dir)
+    Error(_) -> Error(WriteFailure(cache_dir, "Failed to create cache directory"))
   }
 }
 

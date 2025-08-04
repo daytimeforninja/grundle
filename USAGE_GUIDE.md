@@ -263,6 +263,61 @@ autocmd BufWritePost todo.md !push-todos &
 3. Todos sync to calendar apps and task managers
 4. OpenTasks or similar apps provide task-focused interface
 
+## Data Protection & Recovery
+
+### Automatic Backups
+
+grundle automatically protects your todo.md file by creating backups before any modifications:
+
+**Backup Location**: `~/.cache/grundle/`
+**Retention**: 5 most recent backups per file
+**Format**: `filename.backup.timestamp`
+
+```bash
+# Example backup files
+~/.cache/grundle/
+├── home_Documents_todo.md.backup.2024-08-04T15-30-45Z
+├── home_Documents_todo.md.backup.2024-08-04T14-25-12Z
+├── home_Documents_todo.md.backup.2024-08-04T13-15-33Z
+├── home_Documents_todo.md.backup.2024-08-04T12-45-21Z
+└── home_Documents_todo.md.backup.2024-08-04T11-30-15Z
+```
+
+### Recovery Procedures
+
+**Restore from backup:**
+```bash
+# List available backups
+ls -la ~/.cache/grundle/*todo.md.backup*
+
+# Restore most recent backup
+cp ~/.cache/grundle/home_Documents_todo.md.backup.2024-08-04T15-30-45Z ~/Documents/todo.md
+
+# Or restore specific backup
+cp ~/.cache/grundle/home_Documents_todo.md.backup.2024-08-04T13-15-33Z ~/Documents/todo.md
+```
+
+**Manual backup before major changes:**
+```bash
+# Create your own backup before bulk edits
+cp ~/Documents/todo.md ~/Documents/todo.md.manual-backup-$(date +%Y%m%d)
+```
+
+### Duplicate Prevention
+
+grundle automatically prevents duplicate entries by:
+- Cleaning existing `.ics` files before writing new ones
+- Using stable UIDs based on task content
+- Maintaining one-to-one mapping between tasks and ICS files
+
+**If you still see duplicates:**
+```bash
+# Manual cleanup - remove all ICS files and regenerate
+rm ~/.calendars/tasks/*.ics
+grundle todo.md --to-ics ~/.calendars/tasks/
+vdirsyncer sync
+```
+
 ## Troubleshooting
 
 ### Common Issues
@@ -344,11 +399,29 @@ done
 - **Pre-commit hooks**: Auto-push changes when committing todo.md to Git
 
 ### Backup Strategy
+
+grundle automatically handles backups, but you can supplement with additional strategies:
+
 ```bash
-# Daily backup script
+# Daily backup script (in addition to automatic backups)
 DATE=$(date +%Y%m%d)
 cp todo.md "backups/todo-$DATE.md"
 cp -r ~/.calendars/todos/ "backups/ics-$DATE/"
+
+# Weekly backup with git
+git add todo.md && git commit -m "Weekly todo backup - $DATE"
 ```
 
-This converter bridges the gap between plain-text productivity and modern cross-device synchronization, letting you maintain your preferred text-based workflow while gaining the benefits of CalDAV integration.
+**Cache Management:**
+```bash
+# View backup disk usage
+du -sh ~/.cache/grundle
+
+# Clean all backups (if needed to reclaim space)  
+rm -rf ~/.cache/grundle
+
+# Clean backups older than 30 days
+find ~/.cache/grundle -name "*.backup.*" -mtime +30 -delete
+```
+
+This converter bridges the gap between plain-text productivity and modern cross-device synchronization, letting you maintain your preferred text-based workflow while gaining the benefits of CalDAV integration—all with automatic data protection.

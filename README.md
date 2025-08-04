@@ -281,6 +281,24 @@ grundle --from-ics ~/.calendars/tasks/ todo.md
 - **File Naming**: `{uid-prefix}.ics` (e.g., `a84cb35cde77.ics`)
 - **Atomic Operations**: Each task = one .ics file for proper CalDAV sync
 
+## Data Protection and Safety
+
+**Automatic Backups**: Before overwriting any `todo.md` file, grundle automatically creates timestamped backups in `~/.cache/grundle/`:
+
+```bash
+~/.cache/grundle/
+├── home_Documents_todo.md.backup.2024-08-04T15-30-45Z
+├── home_Documents_todo.md.backup.2024-08-04T14-25-12Z
+└── ... (up to 5 most recent backups)
+```
+
+**Duplicate Prevention**: When converting to ICS format, grundle cleans the output directory of existing `.ics` files to prevent duplicate entries during sync.
+
+**Recovery**: If your `todo.md` gets corrupted or overwritten, restore from the most recent backup:
+```bash
+cp ~/.cache/grundle/home_Documents_todo.md.backup.2024-08-04T15-30-45Z ~/Documents/todo.md
+```
+
 ## Error Handling Philosophy
 
 Gleam's `Result(a, b)` type enables explicit error handling:
@@ -301,6 +319,7 @@ pub type Result(a) = Result(a, ConversionError)
 - **File Errors**: Fail fast with descriptive messages
 - **Date Errors**: Default to None, log warning
 - **Write Errors**: Atomic failure (all or nothing)
+- **Backup Failures**: Prevent todo.md modification to avoid data loss
 
 ---
 

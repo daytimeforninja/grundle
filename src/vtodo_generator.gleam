@@ -103,13 +103,20 @@ pub fn write_ics_file(item: TodoItem, directory: String) -> Result(Nil, WriteErr
 }
 
 /// Write multiple TodoItems as .ics files to directory
+/// Cleans existing .ics files first to prevent duplicates
 pub fn write_ics_files(items: List(TodoItem), directory: String) -> Result(Nil, WriteError) {
   case ensure_directory_exists(directory) {
     Error(err) -> Error(err)
     Ok(_) -> {
-      items
-      |> list.try_each(fn(item) { write_ics_file(item, directory) })
-      |> result.replace(Nil)
+      // Clean existing .ics files first to prevent duplicates
+      case clean_ics_directory(directory) {
+        Error(err) -> Error(err)
+        Ok(_) -> {
+          items
+          |> list.try_each(fn(item) { write_ics_file(item, directory) })
+          |> result.replace(Nil)
+        }
+      }
     }
   }
 }
@@ -119,6 +126,25 @@ fn get_filename_from_uid(uid: String) -> String {
   case string.split(uid, "@") {
     [prefix, ..] -> prefix
     [] -> uid
+  }
+}
+
+/// Clean all existing .ics files from directory to prevent duplicates
+fn clean_ics_directory(directory: String) -> Result(Nil, WriteError) {
+  case simplifile.read_directory(directory) {
+    Ok(files) -> {
+      files
+      |> list.filter(fn(file) { string.ends_with(file, ".ics") })
+      |> list.try_each(fn(file) {
+        let filepath = directory <> "/" <> file
+        case simplifile.delete(filepath) {
+          Ok(_) -> Ok(Nil)
+          Error(_) -> Error(WriteFailure(filepath, "Failed to delete existing ICS file"))
+        }
+      })
+      |> result.replace(Nil)
+    }
+    Error(_) -> Ok(Nil)  // Directory doesn't exist yet or is empty, nothing to clean
   }
 }
 
