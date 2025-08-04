@@ -4,11 +4,11 @@
 // Convert TodoItem structs to standards-compliant iCalendar VTODO format.
 // Handles RFC 5545 compliance, text escaping, and proper field mappings.
 
-import gleam/string
+import birl.{type Time}
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
-import birl.{type Time}
+import gleam/string
 import simplifile
 import todo_item.{type TodoItem}
 
@@ -27,7 +27,7 @@ pub fn item_to_vtodo(item: TodoItem) -> String {
     True -> "COMPLETED"
     False -> "NEEDS-ACTION"
   }
-  
+
   let lines = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
@@ -42,15 +42,16 @@ pub fn item_to_vtodo(item: TodoItem) -> String {
     "STATUS:" <> status,
     "CATEGORIES:" <> escape_text(item.section),
   ]
-  
+
   let lines_with_location = case item.context {
     Some(context) -> {
-      let location = context |> string.drop_start(1) |> escape_text // Remove @ prefix
+      let location = context |> string.drop_start(1) |> escape_text
+      // Remove @ prefix
       list.append(lines, ["LOCATION:" <> location])
     }
     None -> lines
   }
-  
+
   let lines_with_due = case item.due_date {
     Some(date) -> {
       let due_str = "DUE;VALUE=DATE:" <> format_date(date)
@@ -58,7 +59,7 @@ pub fn item_to_vtodo(item: TodoItem) -> String {
     }
     None -> lines_with_location
   }
-  
+
   let lines_with_start = case item.start_date {
     Some(date) -> {
       let start_str = "DTSTART;VALUE=DATE:" <> format_date(date)
@@ -66,34 +67,36 @@ pub fn item_to_vtodo(item: TodoItem) -> String {
     }
     None -> lines_with_due
   }
-  
+
   let lines_with_description = case item.notes {
     [] -> lines_with_start
     notes -> {
-      let description = notes 
+      let description =
+        notes
         |> string.join("\\n")
         |> escape_text()
       list.append(lines_with_start, ["DESCRIPTION:" <> description])
     }
   }
-  
-  let final_lines = list.append(lines_with_description, [
-    "END:VTODO",
-    "END:VCALENDAR"
-  ])
-  
+
+  let final_lines =
+    list.append(lines_with_description, ["END:VTODO", "END:VCALENDAR"])
+
   string.join(final_lines, "\r\n")
 }
 
 /// Write TodoItem as .ics file to specified directory
-pub fn write_ics_file(item: TodoItem, directory: String) -> Result(Nil, WriteError) {
+pub fn write_ics_file(
+  item: TodoItem,
+  directory: String,
+) -> Result(Nil, WriteError) {
   case todo_item.validate(item) {
     Error(_) -> Error(InvalidItem("TodoItem validation failed"))
     Ok(valid_item) -> {
       let filename = get_filename_from_uid(valid_item.uid)
       let filepath = directory <> "/" <> filename <> ".ics"
       let content = item_to_vtodo(valid_item)
-      
+
       case simplifile.write(filepath, content) {
         Ok(_) -> Ok(Nil)
         Error(_) -> Error(WriteFailure(filepath, "Failed to write ICS file"))
@@ -104,7 +107,10 @@ pub fn write_ics_file(item: TodoItem, directory: String) -> Result(Nil, WriteErr
 
 /// Write multiple TodoItems as .ics files to directory
 /// Cleans existing .ics files first to prevent duplicates
-pub fn write_ics_files(items: List(TodoItem), directory: String) -> Result(Nil, WriteError) {
+pub fn write_ics_files(
+  items: List(TodoItem),
+  directory: String,
+) -> Result(Nil, WriteError) {
   case ensure_directory_exists(directory) {
     Error(err) -> Error(err)
     Ok(_) -> {
@@ -139,42 +145,51 @@ fn clean_ics_directory(directory: String) -> Result(Nil, WriteError) {
         let filepath = directory <> "/" <> file
         case simplifile.delete(filepath) {
           Ok(_) -> Ok(Nil)
-          Error(_) -> Error(WriteFailure(filepath, "Failed to delete existing ICS file"))
+          Error(_) ->
+            Error(WriteFailure(filepath, "Failed to delete existing ICS file"))
         }
       })
       |> result.replace(Nil)
     }
-    Error(_) -> Ok(Nil)  // Directory doesn't exist yet or is empty, nothing to clean
+    Error(_) -> Ok(Nil)
+    // Directory doesn't exist yet or is empty, nothing to clean
   }
 }
 
-/// Ensure directory exists (simplified - assumes directory exists for now)
-fn ensure_directory_exists(_directory: String) -> Result(Nil, WriteError) {
-  // TODO: Add proper directory creation logic
-  // For now, assume directory exists
-  Ok(Nil)
+/// Ensure directory exists, creating it if necessary
+fn ensure_directory_exists(directory: String) -> Result(Nil, WriteError) {
+  case simplifile.create_directory_all(directory) {
+    Ok(_) -> Ok(Nil)
+    Error(simplifile.Eexist) -> Ok(Nil)
+    // Directory already exists
+    Error(_) -> Error(DirectoryNotFound(directory))
+  }
 }
 
 /// Escape text for iCalendar format according to RFC 5545
 fn escape_text(text: String) -> String {
   text
-  |> string.replace("\\", "\\\\")    // Backslash → \\
-  |> string.replace(",", "\\,")      // Comma → \,
-  |> string.replace(";", "\\;")      // Semicolon → \;
-  |> string.replace("\n", "\\n")     // Newline → \n
+  |> string.replace("\\", "\\\\")
+  // Backslash → \\
+  |> string.replace(",", "\\,")
+  // Comma → \,
+  |> string.replace(";", "\\;")
+  // Semicolon → \;
+  |> string.replace("\n", "\\n")
+  // Newline → \n
 }
 
 /// Format Time as iCalendar DATETIME (YYYYMMDDTHHMMSSZ)
 fn format_datetime(time: Time) -> String {
   // Convert to ISO8601 and then to iCalendar format
   let iso = birl.to_iso8601(time)
-  
+
   // Remove milliseconds (everything after the dot before Z)
   let without_millis = case string.split(iso, ".") {
     [datetime, _rest] -> datetime <> "Z"
     _ -> iso
   }
-  
+
   without_millis
   |> string.replace("-", "")
   |> string.replace(":", "")
@@ -189,4 +204,3 @@ fn format_date(time: Time) -> String {
   |> result.unwrap("2024-01-01")
   |> string.replace("-", "")
 }
-

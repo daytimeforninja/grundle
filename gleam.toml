@@ -1,5 +1,5 @@
 name = "grundle"
-version = "0.3.0"
+version = "0.3.1"
 description = "Convert GTD-style markdown todos to CalDAV-compatible VTODO format"
 
 [dependencies]

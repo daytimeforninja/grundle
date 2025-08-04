@@ -4,17 +4,18 @@
 // This is the main entry point for grundle.
 // It orchestrates the conversion between GTD-style markdown and VTODO format.
 
+import argv
+import envoy
+import gleam/int
 import gleam/io
 import gleam/list
-import gleam/int
+import gleam/order
 import gleam/string
-import argv
-import simplifile
-import envoy
 import markdown_parser
+import markdown_writer
+import simplifile
 import vtodo_generator
 import vtodo_parser
-import markdown_writer
 
 pub fn main() {
   case argv.load().arguments {
@@ -24,24 +25,26 @@ pub fn main() {
           bidirectional_sync(todo_path, ics_dir)
         }
         _, _ -> {
-          io.println_error("Error: GRUNDLE_TODO and GRUNDLE_VTODO environment variables must be set")
+          io.println_error(
+            "Error: GRUNDLE_TODO and GRUNDLE_VTODO environment variables must be set",
+          )
           print_usage()
         }
       }
     }
     ["--help"] -> print_usage()
     ["-h"] -> print_usage()
-    
+
     // Convert todo.md to ICS files
     [input_file, "--to-ics", output_dir] -> {
       convert_to_ics(input_file, output_dir)
     }
-    
+
     // Convert ICS files to todo.md
     ["--from-ics", input_dir, output_file] -> {
       convert_from_ics(input_dir, output_file)
     }
-    
+
     _ -> {
       io.println_error("Error: Invalid arguments")
       print_usage()
@@ -51,11 +54,13 @@ pub fn main() {
 
 fn convert_to_ics(input_file: String, output_dir: String) -> Nil {
   io.println("Converting " <> input_file <> " → ICS files in " <> output_dir)
-  
+
   case markdown_parser.parse_file(input_file) {
     Ok(todo_items) -> {
-      io.println("✓ Parsed " <> int.to_string(list.length(todo_items)) <> " todo items")
-      
+      io.println(
+        "✓ Parsed " <> int.to_string(list.length(todo_items)) <> " todo items",
+      )
+
       case vtodo_generator.write_ics_files(todo_items, output_dir) {
         Ok(_) -> {
           io.println("✓ Successfully wrote ICS files to " <> output_dir)
@@ -79,11 +84,13 @@ fn convert_to_ics(input_file: String, output_dir: String) -> Nil {
 
 fn convert_from_ics(input_dir: String, output_file: String) -> Nil {
   io.println("Converting ICS files in " <> input_dir <> " → " <> output_file)
-  
+
   case vtodo_parser.parse_ics_directory(input_dir) {
     Ok(todo_items) -> {
-      io.println("✓ Parsed " <> int.to_string(list.length(todo_items)) <> " todo items")
-      
+      io.println(
+        "✓ Parsed " <> int.to_string(list.length(todo_items)) <> " todo items",
+      )
+
       case markdown_writer.write_items_to_file(todo_items, output_file) {
         Ok(_) -> {
           io.println("✓ Successfully wrote markdown to " <> output_file)
@@ -96,10 +103,14 @@ fn convert_from_ics(input_dir: String, output_file: String) -> Nil {
     Error(err) -> {
       io.println_error("✗ Failed to parse ICS files")
       case err {
-        vtodo_parser.FileNotFound(path) -> io.println_error("  File not found: " <> path)
-        vtodo_parser.InvalidFormat(msg) -> io.println_error("  Invalid format: " <> msg)
-        vtodo_parser.MissingRequiredField(field) -> io.println_error("  Missing field: " <> field)
-        vtodo_parser.DateParseError(msg) -> io.println_error("  Date parse error: " <> msg)
+        vtodo_parser.FileNotFound(path) ->
+          io.println_error("  File not found: " <> path)
+        vtodo_parser.InvalidFormat(msg) ->
+          io.println_error("  Invalid format: " <> msg)
+        vtodo_parser.MissingRequiredField(field) ->
+          io.println_error("  Missing field: " <> field)
+        vtodo_parser.DateParseError(msg) ->
+          io.println_error("  Date parse error: " <> msg)
       }
     }
   }
@@ -108,11 +119,15 @@ fn convert_from_ics(input_dir: String, output_file: String) -> Nil {
 fn bidirectional_sync(todo_file: String, ics_dir: String) -> Nil {
   case get_sync_direction(todo_file, ics_dir) {
     ToIcs -> {
-      io.println("Syncing " <> todo_file <> " → " <> ics_dir <> " (markdown newer)")
+      io.println(
+        "Syncing " <> todo_file <> " → " <> ics_dir <> " (markdown newer)",
+      )
       convert_to_ics(todo_file, ics_dir)
     }
     FromIcs -> {
-      io.println("Syncing " <> ics_dir <> " → " <> todo_file <> " (ics files newer)")
+      io.println(
+        "Syncing " <> ics_dir <> " → " <> todo_file <> " (ics files newer)",
+      )
       convert_from_ics(ics_dir, todo_file)
     }
     NoSync -> {
@@ -132,9 +147,11 @@ fn get_sync_direction(todo_file: String, ics_dir: String) -> SyncDirection {
     Ok(todo_info) -> {
       case get_newest_ics_mtime(ics_dir) {
         Ok(ics_mtime) -> {
-          case todo_info.mtime_seconds > ics_mtime {
-            True -> ToIcs
-            False -> FromIcs
+          case int.compare(todo_info.mtime_seconds, ics_mtime) {
+            order.Gt -> ToIcs
+            order.Lt -> FromIcs
+            order.Eq -> NoSync
+            // Equal timestamps - no sync needed
           }
         }
         Error(_) -> ToIcs
@@ -172,7 +189,8 @@ fn get_newest_ics_mtime(ics_dir: String) -> Result(Int, simplifile.FileError) {
 }
 
 fn print_usage() -> Nil {
-  io.println("
+  io.println(
+    "
 grundle
 
 Convert between todo.md format and iCalendar VTODO format for CalDAV sync.
@@ -207,5 +225,6 @@ The converter preserves:
   - Due dates and scheduled dates
   - Sub-notes under tasks
   - Section organization (Inbox, Next Actions, etc.)
-")
+",
+  )
 }

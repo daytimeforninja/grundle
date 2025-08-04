@@ -4,15 +4,15 @@
 // Generate GTD-style todo.md content from TodoItem list.
 // Reconstructs original markdown format with canonical ordering.
 
-import gleam/string
-import gleam/list
-import gleam/option.{type Option, None, Some}
+import birl.{type Time}
+import envoy
 import gleam/dict.{type Dict}
 import gleam/int
+import gleam/list
+import gleam/option.{type Option, None, Some}
 import gleam/result
-import birl.{type Time}
+import gleam/string
 import simplifile
-import envoy
 import todo_item.{type TodoItem}
 
 pub type WriteError {
@@ -21,16 +21,15 @@ pub type WriteError {
 
 /// Canonical GTD section order for consistent output
 const section_order = [
-  "Inbox",
-  "Next Actions", 
-  "Projects",
-  "Waiting For",
-  "Someday/Maybe",
-  "Completed"
+  "Inbox", "Next Actions", "Projects", "Waiting For", "Someday/Maybe",
+  "Completed",
 ]
 
 /// Write TodoItems to markdown file with automatic backup
-pub fn write_items_to_file(items: List(TodoItem), path: String) -> Result(Nil, WriteError) {
+pub fn write_items_to_file(
+  items: List(TodoItem),
+  path: String,
+) -> Result(Nil, WriteError) {
   // Create backup if file exists
   case backup_existing_file(path) {
     Error(err) -> Error(err)
@@ -50,7 +49,7 @@ pub fn generate_content(items: List(TodoItem)) -> String {
   let header = "# GTD Todo List\n\n"
   let sections_content = generate_sections(sections_dict)
   let footer = generate_footer()
-  
+
   header <> sections_content <> footer
 }
 
@@ -69,30 +68,33 @@ fn group_items_by_section(items: List(TodoItem)) -> Dict(String, List(TodoItem))
 /// Generate sections content in canonical order
 fn generate_sections(sections_dict: Dict(String, List(TodoItem))) -> String {
   // First, generate canonical sections
-  let canonical_sections = section_order
-  |> list.map(fn(section) {
-    case dict.get(sections_dict, section) {
-      Ok(items) -> format_section(section, items)
-      Error(_) -> ""
-    }
-  })
-  |> list.filter(fn(content) { content != "" })
-  
+  let canonical_sections =
+    section_order
+    |> list.map(fn(section) {
+      case dict.get(sections_dict, section) {
+        Ok(items) -> format_section(section, items)
+        Error(_) -> ""
+      }
+    })
+    |> list.filter(fn(content) { content != "" })
+
   // Then, add any additional sections not in canonical order
   let all_sections = dict.keys(sections_dict)
-  let extra_sections = list.filter(all_sections, fn(section) {
-    !list.contains(section_order, section)
-  })
-  
-  let extra_content = extra_sections
-  |> list.map(fn(section) {
-    case dict.get(sections_dict, section) {
-      Ok(items) -> format_section(section, items)
-      Error(_) -> ""
-    }
-  })
-  |> list.filter(fn(content) { content != "" })
-  
+  let extra_sections =
+    list.filter(all_sections, fn(section) {
+      !list.contains(section_order, section)
+    })
+
+  let extra_content =
+    extra_sections
+    |> list.map(fn(section) {
+      case dict.get(sections_dict, section) {
+        Ok(items) -> format_section(section, items)
+        Error(_) -> ""
+      }
+    })
+    |> list.filter(fn(content) { content != "" })
+
   list.append(canonical_sections, extra_content)
   |> string.join("\n")
 }
@@ -100,11 +102,13 @@ fn generate_sections(sections_dict: Dict(String, List(TodoItem))) -> String {
 /// Format a single section with its items
 fn format_section(section: String, items: List(TodoItem)) -> String {
   let header = "## " <> section <> "\n"
-  let formatted_items = items
-    |> list.reverse()  // Reverse since we prepended during grouping
+  let formatted_items =
+    items
+    |> list.reverse()
+    // Reverse since we prepended during grouping
     |> list.map(format_item)
     |> string.join("\n")
-  
+
   header <> formatted_items <> "\n\n"
 }
 
@@ -114,20 +118,22 @@ fn format_item(item: TodoItem) -> String {
     True -> "[x]"
     False -> "[ ]"
   }
-  
-  let summary_with_dates = add_dates_to_summary(item.summary, item.due_date, item.start_date)
-  
+
+  let summary_with_dates =
+    add_dates_to_summary(item.summary, item.due_date, item.start_date)
+
   let summary_with_context = case item.context {
     Some(context) -> summary_with_dates <> " " <> context
     None -> summary_with_dates
   }
-  
+
   let main_line = "- " <> checkbox <> " " <> summary_with_context
-  
+
   case item.notes {
     [] -> main_line
     notes -> {
-      let note_lines = notes
+      let note_lines =
+        notes
         |> list.map(fn(note) { "  - " <> note })
         |> string.join("\n")
       main_line <> "\n" <> note_lines
@@ -136,14 +142,19 @@ fn format_item(item: TodoItem) -> String {
 }
 
 /// Add date information to summary
-fn add_dates_to_summary(summary: String, due_date: Option(Time), start_date: Option(Time)) -> String {
+fn add_dates_to_summary(
+  summary: String,
+  due_date: Option(Time),
+  start_date: Option(Time),
+) -> String {
   let with_due = case due_date {
     Some(date) -> summary <> " - Due " <> format_date_for_markdown(date)
     None -> summary
   }
-  
+
   case start_date {
-    Some(date) -> with_due <> " - Scheduled for " <> format_date_for_markdown(date)
+    Some(date) ->
+      with_due <> " - Scheduled for " <> format_date_for_markdown(date)
     None -> with_due
   }
 }
@@ -167,10 +178,12 @@ fn format_date_for_markdown(time: Time) -> String {
           }
           month <> "/" <> day
         }
-        _ -> "1/1"  // fallback
+        _ -> "1/1"
+        // fallback
       }
     }
-    Error(_) -> "1/1"  // fallback
+    Error(_) -> "1/1"
+    // fallback
   }
 }
 
@@ -187,59 +200,73 @@ fn backup_existing_file(path: String) -> Result(Nil, WriteError) {
             Error(err) -> Error(err)
             Ok(_) -> {
               // Create new backup with timestamp and safe filename
-              let timestamp = birl.utc_now() 
-                |> birl.to_iso8601() 
+              let timestamp =
+                birl.utc_now()
+                |> birl.to_iso8601()
                 |> string.replace(":", "-")
                 |> string.replace(".", "-")
-              let safe_filename = path
+              let safe_filename =
+                path
                 |> string.replace("/", "_")
                 |> string.replace("~", "home")
-              let backup_path = cache_dir <> "/" <> safe_filename <> ".backup." <> timestamp
+              let backup_path =
+                cache_dir <> "/" <> safe_filename <> ".backup." <> timestamp
               case simplifile.copy_file(at: path, to: backup_path) {
                 Ok(_) -> Ok(Nil)
-                Error(_) -> Error(WriteFailure(backup_path, "Failed to create backup"))
+                Error(_) ->
+                  Error(WriteFailure(backup_path, "Failed to create backup"))
               }
             }
           }
         }
       }
     }
-    _ -> Ok(Nil)  // File doesn't exist or error checking, skip backup
+    _ -> Ok(Nil)
+    // File doesn't exist or error checking, skip backup
   }
 }
 
 /// Keep only the 5 most recent backups in cache directory
-fn cleanup_old_backups(original_path: String, cache_dir: String) -> Result(Nil, WriteError) {
+fn cleanup_old_backups(
+  original_path: String,
+  cache_dir: String,
+) -> Result(Nil, WriteError) {
   case simplifile.read_directory(cache_dir) {
     Ok(files) -> {
       // Create safe filename pattern to match backups for this file
-      let safe_filename = original_path
+      let safe_filename =
+        original_path
         |> string.replace("/", "_")
         |> string.replace("~", "home")
       let backup_pattern = safe_filename <> ".backup."
-      
-      let backup_files = files
+
+      let backup_files =
+        files
         |> list.filter(fn(file) { string.starts_with(file, backup_pattern) })
         |> list.sort(string.compare)
-        |> list.reverse()  // Most recent first
-      
+        |> list.reverse()
+      // Most recent first
+
       // Remove oldest backups if we have more than 4 (keeping 5 total)
       case list.drop(backup_files, 4) {
-        [] -> Ok(Nil)  // 4 or fewer backups, nothing to clean
+        [] -> Ok(Nil)
+        // 4 or fewer backups, nothing to clean
         old_backups -> {
           old_backups
           |> list.try_each(fn(backup_file) {
             let backup_path = cache_dir <> "/" <> backup_file
             case simplifile.delete(backup_path) {
               Ok(_) -> Ok(Nil)
-              Error(_) -> Error(WriteFailure(backup_path, "Failed to delete old backup"))
+              Error(_) ->
+                Error(WriteFailure(backup_path, "Failed to delete old backup"))
             }
           })
           |> result.replace(Nil)
         }
       }
     }
-    Error(_) -> Ok(Nil)  // Cache directory doesn't exist, nothing to clean
+    Error(_) -> Ok(Nil)
+    // Cache directory doesn't exist, nothing to clean
   }
 }
 
@@ -250,13 +277,14 @@ fn ensure_cache_directory() -> Result(String, WriteError) {
     Ok(home) -> home
     Error(_) -> "."
   }
-  
+
   let cache_dir = home_dir <> "/.cache/grundle"
-  
+
   // Create cache directory if it doesn't exist
   case simplifile.create_directory_all(cache_dir) {
     Ok(_) -> Ok(cache_dir)
-    Error(_) -> Error(WriteFailure(cache_dir, "Failed to create cache directory"))
+    Error(_) ->
+      Error(WriteFailure(cache_dir, "Failed to create cache directory"))
   }
 }
 
