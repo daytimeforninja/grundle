@@ -226,6 +226,8 @@ With your tasks synced to CalDAV, you can use any CalDAV-compatible app:
 - **Android**: Tasks.org, DAVx5 + any task app, OpenTasks
 - **Web**: Nextcloud Tasks, Fastmail, etc.
 
+**iOS Compatibility**: grundle automatically handles iOS Reminders format differences (list name prefixes, timestamp formats) for seamless bidirectional sync with Apple devices.
+
 ## Troubleshooting
 
 1. **Conflicting UIDs**: grundle generates stable UIDs based on task content. If you get conflicts, try:

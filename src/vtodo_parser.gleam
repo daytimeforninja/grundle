@@ -197,7 +197,7 @@ fn parse_ics_date(date_str: String) -> Option(Time) {
   }
 }
 
-/// Parse iCalendar DATETIME format (YYYYMMDDTHHMMSSZ or with milliseconds) to Time
+/// Parse iCalendar DATETIME format (YYYYMMDDTHHMMSSZ) to Time
 fn parse_ics_datetime(datetime_str: String) -> Option(Time) {
   // Handle both Z-terminated and non-Z timestamps (iOS format)
   let normalized_str = case string.ends_with(datetime_str, "Z") {
