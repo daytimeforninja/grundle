@@ -22,6 +22,9 @@ pub type ParseError {
 }
 
 /// Parse iCalendar VTODO file into TodoItem
+/// Handles reverse conversion for CalDAV sync workflow
+/// @spec: test/roundtrip_conversion_test_spec.md#vtodo-parsing
+/// @implements: README.md#section-2.4-vtodo-parsing
 pub fn parse_ics_file(path: String) -> Result(TodoItem, ParseError) {
   case simplifile.read(path) {
     Ok(content) -> parse_ics_content(content)
@@ -30,6 +33,9 @@ pub fn parse_ics_file(path: String) -> Result(TodoItem, ParseError) {
 }
 
 /// Parse iCalendar content string into TodoItem
+/// Handles both Unix and Windows line endings for cross-platform compatibility
+/// @spec: test/vtodo_generator_test_spec.md#standards-compliance
+/// @implements: README.md#section-2.5-ics-content-parsing
 pub fn parse_ics_content(content: String) -> Result(TodoItem, ParseError) {
   // Handle both Unix (\n) and Windows (\r\n) line endings
   let normalized_content = string.replace(content, "\r\n", "\n")
@@ -43,6 +49,9 @@ pub fn parse_ics_content(content: String) -> Result(TodoItem, ParseError) {
 }
 
 /// Parse entire directory of .ics files into TodoItem list
+/// Supports vdirsyncer workflow with graceful error handling
+/// @spec: test/roundtrip_conversion_test_spec.md#integration-tests
+/// @implements: README.md#section-3.3-directory-parsing
 pub fn parse_ics_directory(
   directory: String,
 ) -> Result(List(TodoItem), ParseError) {
@@ -50,6 +59,9 @@ pub fn parse_ics_directory(
 }
 
 /// Parse entire directory of .ics files with configurable error handling
+/// Strict mode for validation pipelines, fails fast on any parse error
+/// @spec: test/vtodo_generator_test_spec.md#error-handling-tests
+/// @implements: README.md#section-3.4-strict-directory-parsing
 pub fn parse_ics_directory_strict(
   directory: String,
 ) -> Result(List(TodoItem), ParseError) {
@@ -57,6 +69,9 @@ pub fn parse_ics_directory_strict(
 }
 
 /// Internal function with configurable error handling mode
+/// Handles both strict and permissive parsing modes for directory operations
+/// @spec: test/vtodo_generator_test_spec.md#error-handling-tests
+/// @implements: README.md#section-3.3-directory-parsing
 fn parse_ics_directory_with_mode(
   directory: String,
   strict_mode: Bool,
@@ -129,6 +144,9 @@ fn parse_ics_directory_with_mode(
 }
 
 /// Extract VTODO properties from iCalendar lines
+/// Filters iCalendar lines to extract relevant VTODO properties
+/// @spec: test/roundtrip_conversion_test_spec.md#vtodo-parsing
+/// @implements: README.md#section-2.4-vtodo-parsing
 fn extract_vtodo_properties(lines: List(String)) -> Result(TodoItem, ParseError) {
   let properties =
     lines
@@ -145,6 +163,9 @@ fn extract_vtodo_properties(lines: List(String)) -> Result(TodoItem, ParseError)
 }
 
 /// Parse a single property line into key-value pair
+/// Splits iCalendar property lines on colon delimiter with text unescaping
+/// @spec: test/roundtrip_conversion_test_spec.md#vtodo-parsing
+/// @implements: README.md#section-2.4-vtodo-parsing
 fn parse_property(line: String) -> #(String, String) {
   case string.split_once(line, ":") {
     Ok(#(key, value)) -> #(key, unescape_text(value))
@@ -153,6 +174,9 @@ fn parse_property(line: String) -> #(String, String) {
 }
 
 /// Build TodoItem from list of properties
+/// Constructs TodoItem from parsed iCalendar properties with validation
+/// @spec: test/roundtrip_conversion_test_spec.md#vtodo-parsing
+/// @implements: README.md#section-2.4-vtodo-parsing
 fn build_todo_item(
   properties: List(#(String, String)),
 ) -> Result(TodoItem, ParseError) {
@@ -250,6 +274,9 @@ fn build_todo_item(
 }
 
 /// Get property value by key from property list
+/// Searches property list for key matches including parameterized properties
+/// @spec: test/roundtrip_conversion_test_spec.md#vtodo-parsing
+/// @implements: README.md#section-2.4-vtodo-parsing
 fn get_property(
   properties: List(#(String, String)),
   key: String,
@@ -267,6 +294,9 @@ fn get_property(
 }
 
 /// Parse iCalendar DATE format (YYYYMMDD) to Time
+/// Converts RFC 5545 DATE format to Time with comprehensive validation
+/// @spec: test/roundtrip_conversion_test_spec.md#vtodo-parsing
+/// @implements: README.md#section-2.4-vtodo-parsing
 fn parse_ics_date(date_str: String) -> Option(Time) {
   case string.length(date_str) == 8 {
     True -> {
@@ -313,6 +343,9 @@ fn parse_ics_date(date_str: String) -> Option(Time) {
 }
 
 /// Parse iCalendar DATETIME format (YYYYMMDDTHHMMSSZ) to Time
+/// Converts RFC 5545 DATETIME format to Time with Z-suffix handling
+/// @spec: test/roundtrip_conversion_test_spec.md#vtodo-parsing
+/// @implements: README.md#section-2.4-vtodo-parsing
 fn parse_ics_datetime(datetime_str: String) -> Option(Time) {
   // Handle both Z-terminated and non-Z timestamps (iOS format)
   let normalized_str = case string.ends_with(datetime_str, "Z") {
@@ -385,6 +418,9 @@ fn parse_ics_datetime(datetime_str: String) -> Option(Time) {
 }
 
 /// Check if a day is valid for the given month and year
+/// Validates day against month-specific limits including leap year handling
+/// @spec: test/roundtrip_conversion_test_spec.md#vtodo-parsing
+/// @implements: README.md#section-2.4-vtodo-parsing
 fn is_valid_day_for_month(year: Int, month: Int, day: Int) -> Bool {
   case day >= 1 {
     False -> False
@@ -407,6 +443,9 @@ fn is_valid_day_for_month(year: Int, month: Int, day: Int) -> Bool {
 }
 
 /// Validate directory path to prevent traversal attacks
+/// Prevents path traversal and restricts access to safe directory locations
+/// @spec: test/vtodo_generator_test_spec.md#error-handling-tests
+/// @implements: README.md#section-5.1-environment-security
 fn validate_directory_path(directory: String) -> Result(String, ParseError) {
   // Check for obvious path traversal attempts
   case string.contains(directory, "..") || string.contains(directory, "~") {
@@ -442,6 +481,9 @@ fn validate_directory_path(directory: String) -> Result(String, ParseError) {
 }
 
 /// Sanitize file paths for logging to prevent log injection
+/// Removes control characters and limits length for secure logging
+/// @spec: test/vtodo_generator_test_spec.md#error-handling-tests
+/// @implements: README.md#section-5.1-environment-security
 fn sanitize_path_for_log(path: String) -> String {
   path
   |> string.replace("\n", "\\n")
@@ -452,6 +494,9 @@ fn sanitize_path_for_log(path: String) -> String {
 }
 
 /// Sanitize filenames for logging
+/// Cleans filenames for safe display in log messages
+/// @spec: test/vtodo_generator_test_spec.md#error-handling-tests
+/// @implements: README.md#section-5.1-environment-security
 fn sanitize_filename_for_log(filename: String) -> String {
   filename
   |> string.replace("\n", "\\n")
@@ -462,6 +507,9 @@ fn sanitize_filename_for_log(filename: String) -> String {
 }
 
 /// Sanitize error messages to prevent information leakage
+/// Removes sensitive path information and limits error message length
+/// @spec: test/vtodo_generator_test_spec.md#error-handling-tests
+/// @implements: README.md#section-5.1-environment-security
 fn sanitize_error_message(msg: String) -> String {
   msg
   |> string.replace("\n", "\\n")
@@ -476,6 +524,9 @@ fn sanitize_error_message(msg: String) -> String {
 }
 
 /// Unescape iCalendar text format (reverse of escape_text)
+/// Reverses RFC 5545 text escaping for proper text content restoration
+/// @spec: test/roundtrip_conversion_test_spec.md#vtodo-parsing
+/// @implements: README.md#section-2.4-vtodo-parsing
 fn unescape_text(text: String) -> String {
   text
   |> string.replace("\\\\", "\\")

@@ -56,15 +56,10 @@ pub type TodoItemError {
   UidGenerationError(String)
 }
 
-/// Generate stable UID for a todo item based on its semantic content.
-/// 
-/// Uses SHA256 hash of "section:summary" to ensure:
-/// - Same content always produces same UID
-/// - Different content produces different UIDs  
-/// - UIDs remain stable across format conversions
-/// 
-/// Format: {12-char-hex}@todo-md-sync
-/// Example: "Next Actions:Review project documentation" → "a84cb35cde77@todo-md-sync"
+/// Generate stable UID for a todo item based on its semantic content
+/// Uses SHA256 hash of "section:summary" to ensure UID stability across conversions
+/// @spec: test/markdown_parser_test_spec.md#uid-generation-tests
+/// @implements: README.md#section-4.1-uid-generation
 pub fn generate_uid(summary: String, section: String) -> String {
   let content = section <> ":" <> summary
   let hash = crypto.hash(crypto.Sha256, <<content:utf8>>)
@@ -78,6 +73,9 @@ pub fn generate_uid(summary: String, section: String) -> String {
 }
 
 /// Create a new TodoItem with generated UID and current timestamps
+/// Factory function that ensures proper initialization of all required fields
+/// @spec: test/markdown_parser_test_spec.md#todoitem-creation
+/// @implements: README.md#section-4.2-todoitem-construction
 pub fn new(
   summary: String,
   section: String,
@@ -105,11 +103,17 @@ pub fn new(
 }
 
 /// Update the modification timestamp of a TodoItem
+/// Used to track changes during conversion processes
+/// @spec: test/roundtrip_conversion_test_spec.md#timestamp-management
+/// @implements: README.md#section-4.3-timestamp-updates
 pub fn touch(item: TodoItem) -> TodoItem {
   TodoItem(..item, modified_at: birl.utc_now())
 }
 
 /// Validate that a TodoItem has required fields properly set
+/// Ensures data integrity before format conversions
+/// @spec: test/vtodo_generator_test_spec.md#empty-nil-fields-handling
+/// @implements: README.md#section-4.4-data-validation
 pub fn validate(item: TodoItem) -> Result(TodoItem, TodoItemError) {
   case string.trim(item.summary) {
     "" -> Error(InvalidSummary("Summary cannot be empty"))
@@ -122,7 +126,9 @@ pub fn validate(item: TodoItem) -> Result(TodoItem, TodoItemError) {
 }
 
 /// Check if two TodoItems are semantically equivalent
-/// (same content, may have different timestamps)
+/// Implements semantic equivalence definition for roundtrip validation
+/// @spec: test/roundtrip_conversion_test_spec.md#semantic-equivalence-definition
+/// @implements: README.md#section-4.5-equivalence-checking
 pub fn equivalent(item1: TodoItem, item2: TodoItem) -> Bool {
   item1.summary == item2.summary
   && item1.completed == item2.completed

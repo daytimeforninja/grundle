@@ -29,6 +29,9 @@ pub type ParseState {
 }
 
 /// Parse GTD-style todo.md file into TodoItem list
+/// Handles GTD principle: contexts should be flexible user-defined strings
+/// @spec: test/markdown_parser_test_spec.md#basic-task-parsing
+/// @implements: README.md#section-1.1-markdown-parsing
 pub fn parse_file(path: String) -> Result(List(TodoItem), ParseError) {
   case simplifile.read(path) {
     Ok(content) -> Ok(parse_content(content))
@@ -37,6 +40,9 @@ pub fn parse_file(path: String) -> Result(List(TodoItem), ParseError) {
 }
 
 /// Parse markdown content string into TodoItem list
+/// Implements GTD methodology for section headers, contexts, dates, and sub-notes
+/// @spec: test/markdown_parser_test_spec.md#complex-real-world-examples
+/// @implements: README.md#section-2.1-content-parsing
 pub fn parse_content(content: String) -> List(TodoItem) {
   let lines = string.split(content, "\n")
   let initial_state =
@@ -48,15 +54,16 @@ pub fn parse_content(content: String) -> List(TodoItem) {
 
   let final_state = list.fold(lines, initial_state, process_line)
 
-  // Add any remaining current_item to completed list
-  case final_state.current_item {
-    Some(item) -> [item, ..final_state.completed_items]
-    None -> final_state.completed_items
-  }
+  // Add any remaining current_item to completed list (with proper note reversal)
+  let final_state_with_item = add_current_item_to_completed(final_state)
+  final_state_with_item.completed_items
   |> list.reverse()
 }
 
 /// Process a single line and update parse state
+/// Core parsing logic that handles section headers, tasks, and notes
+/// @spec: test/markdown_parser_test_spec.md#basic-task-parsing
+/// @implements: README.md#section-2.1-content-parsing
 fn process_line(state: ParseState, line: String) -> ParseState {
   let trimmed_line = string.trim(line)
 
@@ -118,11 +125,17 @@ fn process_line(state: ParseState, line: String) -> ParseState {
 }
 
 /// Check if line is a section header (## Section Name)
+/// Identifies GTD section boundaries for task organization
+/// @spec: test/markdown_parser_test_spec.md#basic-task-parsing
+/// @implements: README.md#section-2.1-content-parsing
 fn is_section_header(line: String) -> Bool {
   string.starts_with(line, "##")
 }
 
 /// Extract section name from header line
+/// Parses section titles for TodoItem categorization
+/// @spec: test/markdown_parser_test_spec.md#basic-task-parsing
+/// @implements: README.md#section-2.1-content-parsing
 fn extract_section_name(line: String) -> String {
   line
   |> string.drop_start(2)
@@ -130,6 +143,9 @@ fn extract_section_name(line: String) -> String {
 }
 
 /// Check if line is a task line (- [ ] or - [x])
+/// Uses regex to identify valid GTD checkbox syntax
+/// @spec: test/markdown_parser_test_spec.md#basic-task-parsing
+/// @implements: README.md#section-2.1-content-parsing
 fn is_task_line(line: String) -> Bool {
   let task_pattern = "^-\\s+\\[([ x])\\]\\s+.+"
   case regexp.from_string(task_pattern) {
@@ -138,18 +154,18 @@ fn is_task_line(line: String) -> Bool {
   }
 }
 
-/// Check if line is a note line (starts with spaces and -)
+/// Check if line is a note line (exactly 2 spaces + dash)
+/// Identifies properly indented sub-notes, ignores deeper indentation
+/// @spec: test/markdown_parser_test_spec.md#basic-task-parsing
+/// @implements: README.md#section-2.1-content-parsing
 fn is_note_line(line: String) -> Bool {
-  case string.first(line) {
-    Ok(" ") -> {
-      let trimmed = string.trim(line)
-      string.starts_with(trimmed, "-")
-    }
-    _ -> False
-  }
+  string.starts_with(line, "  - ")
 }
 
 /// Extract note text from indented line
+/// Cleans indentation and dash prefix from sub-notes
+/// @spec: test/markdown_parser_test_spec.md#basic-task-parsing
+/// @implements: README.md#section-2.1-content-parsing
 fn extract_note_text(line: String) -> String {
   line
   |> string.trim()
@@ -158,6 +174,9 @@ fn extract_note_text(line: String) -> String {
 }
 
 /// Parse task line into TodoItem
+/// Converts checkbox syntax to TodoItem with completion status and content parsing
+/// @spec: test/markdown_parser_test_spec.md#basic-task-parsing
+/// @implements: README.md#section-2.1-content-parsing
 fn parse_task_line(line: String, section: String) -> Option(TodoItem) {
   let task_pattern = "^-\\s+\\[([ x])\\]\\s+(.+)$"
   case regexp.from_string(task_pattern) {
@@ -186,17 +205,33 @@ fn parse_task_line(line: String, section: String) -> Option(TodoItem) {
 }
 
 /// Parse task content to extract summary, context, and dates
+/// Coordinates context extraction, date parsing, and summary cleaning
+/// @spec: test/markdown_parser_test_spec.md#complex-real-world-examples
+/// @implements: README.md#section-2.1-content-parsing
 fn parse_task_content(
   content: String,
 ) -> #(String, Option(String), Option(Time), Option(Time)) {
   let #(summary_with_dates, context) = extract_context(content)
-  let #(summary_with_due, start_date) = extract_start_date(summary_with_dates)
-  let #(clean_summary, due_date) = extract_due_date(summary_with_due)
+  
+  // Extract both dates independently from the original text
+  let #(_, start_date) = extract_start_date(summary_with_dates)
+  let #(_, due_date) = extract_due_date(summary_with_dates)
+  
+  // Clean summary by removing both date patterns
+  let summary_after_start = case extract_start_date(summary_with_dates) {
+    #(clean, _) -> clean
+  }
+  let clean_summary = case extract_due_date(summary_after_start) {
+    #(clean, _) -> clean
+  }
 
   #(clean_summary, context, due_date, start_date)
 }
 
 /// Extract context (@word) from end of content
+/// Implements GTD context extraction with regex pattern matching
+/// @spec: test/markdown_parser_test_spec.md#complex-real-world-examples
+/// @implements: README.md#section-2.1-content-parsing
 fn extract_context(content: String) -> #(String, Option(String)) {
   let context_pattern = "^(.+?)\\s+(@\\w+)\\s*$"
   case regexp.from_string(context_pattern) {
@@ -214,8 +249,11 @@ fn extract_context(content: String) -> #(String, Option(String)) {
 }
 
 /// Extract due date from "Due MM/DD" patterns
+/// Parses due date patterns and removes them from summary text
+/// @spec: test/markdown_parser_test_spec.md#complex-real-world-examples
+/// @implements: README.md#section-2.1-content-parsing
 fn extract_due_date(content: String) -> #(String, Option(Time)) {
-  let due_pattern = "^(.+?)\\s*-?\\s*[Dd]ue\\s+(\\d{1,2}/\\d{1,2})\\s*$"
+  let due_pattern = "^(.+?)\\s*-?\\s*[Dd]ue\\s+(\\d{1,2}/\\d{1,2})"
   case regexp.from_string(due_pattern) {
     Ok(re) -> {
       case regexp.scan(re, content) {
@@ -231,9 +269,12 @@ fn extract_due_date(content: String) -> #(String, Option(Time)) {
 }
 
 /// Extract start date from "Scheduled for MM/DD" patterns
+/// Parses scheduling patterns and removes them from summary text
+/// @spec: test/markdown_parser_test_spec.md#complex-real-world-examples
+/// @implements: README.md#section-2.1-content-parsing
 fn extract_start_date(content: String) -> #(String, Option(Time)) {
   let start_pattern =
-    "^(.+?)\\s*-?\\s*[Ss]cheduled\\s+for\\s+(\\d{1,2}/\\d{1,2})\\s*$"
+    "^(.+?)\\s*-?\\s*[Ss]cheduled\\s+for\\s+(\\d{1,2}/\\d{1,2})"
   case regexp.from_string(start_pattern) {
     Ok(re) -> {
       case regexp.scan(re, content) {
@@ -248,8 +289,10 @@ fn extract_start_date(content: String) -> #(String, Option(Time)) {
   }
 }
 
-/// Parse MM/DD date string with intelligent year inference
 /// Check if a day is valid for the given month and year
+/// Handles leap years and month-specific day limits for date validation
+/// @spec: test/markdown_parser_test_spec.md#complex-real-world-examples
+/// @implements: README.md#section-2.1-content-parsing
 fn is_valid_day(year: Int, month: Int, day: Int) -> Bool {
   case day >= 1 {
     False -> False
@@ -271,6 +314,10 @@ fn is_valid_day(year: Int, month: Int, day: Int) -> Bool {
   }
 }
 
+/// Parse MM/DD date strings into Time objects with current year inference
+/// Handles date validation including leap years and month-specific day limits
+/// @spec: test/markdown_parser_test_spec.md#complex-real-world-examples
+/// @implements: README.md#section-2.1-content-parsing
 fn parse_date_string(date_str: String) -> Option(Time) {
   case string.split(date_str, "/") {
     [month_str, day_str] -> {
@@ -315,6 +362,9 @@ fn parse_date_string(date_str: String) -> Option(Time) {
 }
 
 /// Add current item to completed list if it exists
+/// Manages parse state transitions and note list reversal for proper order
+/// @spec: test/markdown_parser_test_spec.md#basic-task-parsing
+/// @implements: README.md#section-2.1-content-parsing
 fn add_current_item_to_completed(state: ParseState) -> ParseState {
   case state.current_item {
     Some(item) -> {

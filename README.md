@@ -321,6 +321,93 @@ pub type Result(a) = Result(a, ConversionError)
 - **Write Errors**: Atomic failure (all or nothing)
 - **Backup Failures**: Prevent todo.md modification to avoid data loss
 
+## Implementation Sections
+
+### Section 1: CLI Interface Components
+
+#### Section 1.0: CLI Interface {#section-1.0-cli-interface}
+Main entry point handling command-line arguments, environment variables, and usage display. Orchestrates all conversion operations.
+
+#### Section 1.1: Help System {#section-1.1-help-system}  
+Comprehensive usage information display including commands, examples, environment variables, and vdirsyncer workflow integration.
+
+#### Section 1.1: Markdown Parsing {#section-1.1-markdown-parsing}
+Core markdown file parsing with GTD-style task extraction, section header processing, and TodoItem construction.
+
+#### Section 1.2: Markdown Generation {#section-1.2-markdown-generation}
+Reconstruction of GTD-style markdown from TodoItem structures with canonical section ordering and proper formatting.
+
+### Section 2: Content Processing
+
+#### Section 2.1: Content Parsing {#section-2.1-content-parsing}
+String-based markdown content processing including line-by-line parsing state management and TodoItem accumulation.
+
+#### Section 2.2: VTODO Generation {#section-2.2-vtodo-generation}
+Standards-compliant iCalendar VTODO format generation with RFC 5545 compliance and proper text escaping.
+
+#### Section 2.3: Content Generation {#section-2.3-content-generation}
+Markdown content string generation from TodoItem lists with section grouping and formatting.
+
+#### Section 2.4: VTODO Parsing {#section-2.4-vtodo-parsing}
+iCalendar VTODO file parsing back into TodoItem structures with property extraction and field mapping.
+
+#### Section 2.5: ICS Content Parsing {#section-2.5-ics-content-parsing}
+Raw iCalendar content string processing with line ending normalization and property parsing.
+
+### Section 3: File Operations
+
+#### Section 3.1: ICS File Generation {#section-3.1-ics-file-generation}
+Individual TodoItem to .ics file conversion with filename generation and directory management.
+
+#### Section 3.1: Markdown to ICS Conversion {#section-3.1-markdown-to-ics-conversion}
+Complete workflow from markdown file to directory of ICS files with error handling and progress reporting.
+
+#### Section 3.2: Batch ICS Generation {#section-3.2-batch-ics-generation}
+Multiple TodoItem batch processing to ICS files with directory cleanup and atomic operations.
+
+#### Section 3.2: ICS to Markdown Conversion {#section-3.2-ics-to-markdown-conversion}
+Complete workflow from ICS directory to markdown file with TodoItem consolidation and file writing.
+
+#### Section 3.3: Directory Parsing {#section-3.3-directory-parsing}
+ICS directory scanning and batch TodoItem extraction with error recovery and validation.
+
+#### Section 3.4: Strict Directory Parsing {#section-3.4-strict-directory-parsing}
+Rigorous ICS directory parsing with fail-fast error handling for validation pipelines.
+
+### Section 4: Data Management
+
+#### Section 4.1: Bidirectional Sync {#section-4.1-bidirectional-sync}
+Timestamp-based sync direction determination with newest-wins strategy for CalDAV workflow.
+
+#### Section 4.1: UID Generation {#section-4.1-uid-generation}
+Stable unique identifier generation using content hashing for cross-conversion consistency.
+
+#### Section 4.2: Timestamp Comparison {#section-4.2-timestamp-comparison}
+File modification time comparison for sync direction determination with atomic operations.
+
+#### Section 4.2: TodoItem Construction {#section-4.2-todoitem-construction}
+Factory function for TodoItem creation with proper field initialization and timestamp management.
+
+#### Section 4.3: ICS Timestamp Detection {#section-4.3-ics-timestamp-detection}
+ICS directory scanning for newest modification time determination in sync operations.
+
+#### Section 4.3: Timestamp Updates {#section-4.3-timestamp-updates}
+TodoItem modification timestamp updates for change tracking during conversions.
+
+#### Section 4.4: Data Validation {#section-4.4-data-validation}
+TodoItem field validation ensuring data integrity before format conversions with error reporting.
+
+#### Section 4.5: Equivalence Checking {#section-4.5-equivalence-checking}
+Semantic equivalence testing for TodoItem comparison in roundtrip validation scenarios.
+
+### Section 5: Security
+
+#### Section 5.1: Environment Security {#section-5.1-environment-security}
+Environment variable path validation preventing directory traversal and system directory access.
+
+#### Section 5.2: Path Security Validation {#section-5.2-path-security-validation}
+Individual path security checking with tilde expansion and traversal attack prevention.
+
 ---
 
 *This document serves as both specification and test plan. Implementation should follow these documented behaviors exactly.*

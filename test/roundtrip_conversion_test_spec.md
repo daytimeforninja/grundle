@@ -6,7 +6,7 @@ Roundtrip tests validate the most critical requirement: **semantic preservation*
 
 Perfect syntactic preservation is not required (formatting may change), but semantic equivalence must be maintained.
 
-## Semantic Equivalence Definition
+## Semantic Equivalence Definition {#semantic-equivalence-definition}
 
 Two TodoItems are semantically equivalent if they have identical:
 - Task completion status
@@ -78,7 +78,7 @@ markdown → TodoItem → VTODO → TodoItem → markdown
 - ✅ Context extracted to LOCATION and restored to summary
 - ✅ @ prefix preserved in final output
 
-## Section Preservation Tests
+## Section Preservation Tests {#section-order-normalization}
 
 ### Test 4: Multiple Sections Roundtrip
 **Input Markdown:**
@@ -423,7 +423,7 @@ markdown → TodoItem → VTODO → TodoItem → markdown
 - ✅ No note truncation or loss
 - ✅ Proper DESCRIPTION field handling
 
-## Integration Tests
+## Integration Tests {#integration-tests}
 
 ### Test 18: vdirsyncer Workflow Simulation
 **Complete Workflow:**
@@ -448,6 +448,131 @@ markdown → TodoItem → VTODO → TodoItem → markdown
 - ✅ No progressive data loss
 - ✅ Semantic equivalence maintained across cycles
 - ✅ No format drift or corruption
+
+## VTODO Parsing Tests {#vtodo-parsing}
+
+### Test 20: Basic VTODO to TodoItem Conversion
+**Purpose:** Verify iCalendar VTODO parsing back to TodoItem structures
+
+**Input VTODO:**
+```ics
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Todo.md Sync//EN
+BEGIN:VTODO
+UID:abc123def456@todo-md-sync
+SUMMARY:Test task
+STATUS:NEEDS-ACTION
+CATEGORIES:Next Actions
+LOCATION:computer
+END:VTODO
+END:VCALENDAR
+```
+
+**Expected TodoItem:**
+```gleam
+TodoItem(
+  uid: "abc123def456@todo-md-sync",
+  summary: "Test task",
+  completed: False,  // STATUS:NEEDS-ACTION
+  context: Some("@computer"),  // LOCATION with @ prefix added
+  section: "Next Actions",  // CATEGORIES
+  // ... other fields
+)
+```
+
+## Markdown Generation Tests {#markdown-generation}
+
+### Test 21: TodoItem to Markdown Conversion
+**Purpose:** Verify markdown reconstruction from TodoItem structures
+
+**Input TodoItem:**
+```gleam
+TodoItem(
+  summary: "Review documentation",
+  completed: False,
+  context: Some("@computer"),
+  section: "Next Actions",
+  notes: ["Check for updates", "Update changelog"],
+  // ... other fields
+)
+```
+
+**Expected Markdown:**
+```markdown
+# GTD Todo List
+
+## Next Actions
+- [ ] Review documentation @computer
+  - Check for updates
+  - Update changelog
+
+---
+*Last Weekly Review: [To be filled]*
+*GTD Contexts: @computer, @home, @errands, @calls, @anywhere, @waiting, @shopping, @yurt*
+```
+
+## Timestamp Management Tests {#timestamp-management}
+
+### Test 22: Timestamp Preservation Through Conversions
+**Purpose:** Verify timestamp handling across conversion cycles
+
+**Process:**
+1. Create TodoItem with specific timestamps
+2. Convert to VTODO (timestamps → iCalendar format)
+3. Parse back to TodoItem (timestamps preserved)
+4. Verify timestamp integrity
+
+**Expected Behavior:**
+- ✅ Created timestamp preserved exactly
+- ✅ Modified timestamp updated on conversion
+- ✅ No precision loss in timestamp conversion
+- ✅ UTC timezone handling consistent
+
+## Backup Management Tests {#backup-management}
+
+### Test 23: Automatic Backup Creation
+**Purpose:** Verify that existing files are backed up before modification
+
+**Process:**
+1. Create initial `todo.md` file
+2. Attempt to overwrite with new content
+3. Verify backup created in `~/.cache/grundle/`
+4. Verify original file content preserved in backup
+
+**Expected Behavior:**
+- ✅ Backup created with timestamp in filename
+- ✅ Original file content exactly preserved
+- ✅ New content written to original location
+- ✅ Backup filename sanitized for security
+
+### Test 24: Backup Rotation Limits
+**Purpose:** Verify that only 5 most recent backups are kept
+
+**Process:**
+1. Create 10 successive backup operations
+2. Check cache directory contents
+3. Verify oldest backups automatically removed
+
+**Expected Behavior:**
+- ✅ Only 5 most recent backups remain
+- ✅ Oldest backups removed automatically
+- ✅ No manual cleanup required
+- ✅ Storage space bounded
+
+### Test 25: Backup Filename Security
+**Purpose:** Verify backup filenames are sanitized against path traversal
+
+**Input:** File paths with dangerous components:
+- `../../../etc/passwd`
+- `~/secret/file.md`
+- `path/with/../traversal.md`
+
+**Expected Behavior:**
+- ✅ Path traversal components sanitized
+- ✅ Backups created in safe cache directory only
+- ✅ No directory escape possible
+- ✅ Special characters properly handled
 
 ## Acceptance Criteria
 

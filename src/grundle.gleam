@@ -17,6 +17,10 @@ import simplifile
 import vtodo_generator
 import vtodo_parser
 
+/// Main entry point for grundle CLI application
+/// Handles command-line arguments and orchestrates conversions
+/// @spec: test/grundle_test.gleam#main-function-tests
+/// @implements: README.md#section-1.0-cli-interface
 pub fn main() {
   case argv.load().arguments {
     [] -> {
@@ -60,6 +64,10 @@ pub fn main() {
   }
 }
 
+/// Convert markdown todo file to directory of ICS files
+/// Orchestrates parsing and VTODO generation for CalDAV sync
+/// @spec: test/grundle_test.gleam#convert-to-ics-tests
+/// @implements: README.md#section-3.1-markdown-to-ics-conversion
 fn convert_to_ics(input_file: String, output_dir: String) -> Nil {
   io.println("Converting " <> input_file <> " → ICS files in " <> output_dir)
 
@@ -90,6 +98,10 @@ fn convert_to_ics(input_file: String, output_dir: String) -> Nil {
   }
 }
 
+/// Convert directory of ICS files back to markdown todo file
+/// Orchestrates VTODO parsing and markdown generation for CalDAV sync
+/// @spec: test/grundle_test.gleam#convert-from-ics-tests
+/// @implements: README.md#section-3.2-ics-to-markdown-conversion
 fn convert_from_ics(input_dir: String, output_file: String) -> Nil {
   io.println("Converting ICS files in " <> input_dir <> " → " <> output_file)
 
@@ -124,6 +136,10 @@ fn convert_from_ics(input_dir: String, output_file: String) -> Nil {
   }
 }
 
+/// Perform bidirectional sync based on file modification timestamps
+/// Implements newest-wins strategy for CalDAV workflow integration
+/// @spec: test/grundle_test.gleam#bidirectional-sync-tests
+/// @implements: README.md#section-4.1-bidirectional-sync
 fn bidirectional_sync(todo_file: String, ics_dir: String) -> Nil {
   case get_sync_direction(todo_file, ics_dir) {
     ToIcs -> {
@@ -150,6 +166,10 @@ type SyncDirection {
   NoSync
 }
 
+/// Determine sync direction by comparing file modification times
+/// Uses atomic file operations to reduce TOCTOU race conditions
+/// @spec: test/grundle_test.gleam#sync-direction-tests
+/// @implements: README.md#section-4.2-timestamp-comparison
 fn get_sync_direction(todo_file: String, ics_dir: String) -> SyncDirection {
   // Get file info atomically to reduce TOCTOU race conditions
   case simplifile.file_info(todo_file), get_newest_ics_mtime(ics_dir) {
@@ -167,6 +187,10 @@ fn get_sync_direction(todo_file: String, ics_dir: String) -> SyncDirection {
   }
 }
 
+/// Find the newest modification time among all ICS files in directory
+/// Scans directory for .ics files and returns latest mtime for sync comparison
+/// @spec: test/grundle_test.gleam#ics-mtime-tests
+/// @implements: README.md#section-4.3-ics-timestamp-detection
 fn get_newest_ics_mtime(ics_dir: String) -> Result(Int, simplifile.FileError) {
   case simplifile.read_directory(ics_dir) {
     Ok(files) -> {
@@ -189,6 +213,10 @@ fn get_newest_ics_mtime(ics_dir: String) -> Result(Int, simplifile.FileError) {
   }
 }
 
+/// Display comprehensive usage information and examples
+/// Shows CLI syntax, environment variables, and vdirsyncer workflow
+/// @spec: test/grundle_test.gleam#usage-display-tests
+/// @implements: README.md#section-1.1-help-system
 fn print_usage() -> Nil {
   io.println(
     "
@@ -231,6 +259,9 @@ The converter preserves:
 }
 
 /// Validate environment variable paths for security
+/// Prevents path traversal and restricts access to system directories
+/// @spec: test/grundle_test.gleam#env-path-validation-tests
+/// @implements: README.md#section-5.1-environment-security
 fn validate_env_paths(
   todo_path: String,
   ics_dir: String,
@@ -243,6 +274,9 @@ fn validate_env_paths(
 }
 
 /// Validate a single path for security concerns
+/// Handles tilde expansion and prevents directory traversal attacks
+/// @spec: test/grundle_test.gleam#single-path-validation-tests
+/// @implements: README.md#section-5.2-path-security-validation
 fn validate_single_path(path: String) -> Result(String, String) {
   // First expand tilde if present
   let expanded_path = case string.starts_with(path, "~/") {

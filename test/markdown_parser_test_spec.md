@@ -4,7 +4,7 @@
 
 These tests serve as both specification and validation. Each test case documents the exact expected behavior with concrete input/output examples.
 
-## Basic Task Parsing Tests
+## Basic Task Parsing Tests {#basic-task-parsing}
 
 ### Test 1: Simple Uncompleted Task
 **Input:**
@@ -260,7 +260,7 @@ TodoItem(
 ]
 ```
 
-## Complex Real-World Examples
+## Complex Real-World Examples {#complex-real-world-examples}
 
 ### Test 13: Full GTD Document
 **Input:**
@@ -472,7 +472,7 @@ let task2 = parse_content("- [ ] Second task @home")
 assert task1.uid != task2.uid // Different content = different UID
 ```
 
-### Test 22: UID Format Validation
+### Test 22: UID Format Validation {#uid-generation-tests}
 **Expected Format:** `{12-hex-chars}@todo-md-sync`
 
 **Test:**
@@ -481,6 +481,46 @@ let task = parse_content("- [ ] Test task")
 assert String.length(task.uid) == 12 + 1 + 13 // hash + @ + domain
 assert String.ends_with(task.uid, "@todo-md-sync")
 assert String.match(task.uid, "^[0-9a-f]{12}@todo-md-sync$")
+```
+
+## TodoItem Creation Tests {#todoitem-creation}
+
+### Test 23: TodoItem Factory Function
+**Purpose:** Test the TodoItem creation and initialization process
+
+**Test Cases:**
+```gleam
+// Test basic TodoItem creation
+let item = todo_item.new(
+  "Test task",      // summary
+  "Next Actions",   // section
+  False,           // completed
+  Some("@home"),   // context
+  ["Note 1"],      // notes
+  None,            // due_date
+  None,            // start_date
+)
+
+// Verify proper initialization
+assert item.summary == "Test task"
+assert item.section == "Next Actions"
+assert item.completed == False
+assert item.context == Some("@home")
+assert item.notes == ["Note 1"]
+assert String.ends_with(item.uid, "@todo-md-sync")
+assert item.created_at != None
+assert item.modified_at != None
+```
+
+### Test 24: UID Stability Across Creation
+**Purpose:** Ensure same content produces same UID
+
+**Test:**
+```gleam
+let item1 = todo_item.new("Same task", "Inbox", False, None, [], None, None)
+let item2 = todo_item.new("Same task", "Inbox", False, None, [], None, None)
+
+assert item1.uid == item2.uid  // Same content = same UID
 ```
 
 ---

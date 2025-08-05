@@ -4,7 +4,7 @@
 
 VTODO generation must produce RFC 5545 compliant iCalendar format. These tests verify exact output format, proper escaping, and CalDAV compatibility.
 
-## Basic VTODO Structure Tests
+## Basic VTODO Structure Tests {#basic-vtodo-structure}
 
 ### Test 1: Minimal TodoItem
 **Input:**
@@ -333,7 +333,7 @@ END:VCALENDAR
 - ✅ Multi-line description properly handled
 - ✅ Timestamps reflect different created/modified times
 
-## File Output Tests
+## File Output Tests {#file-output-tests}
 
 ### Test 14: Filename Generation
 **Input UID:** `"abc123def456@todo-md-sync"`
@@ -357,7 +357,7 @@ END:VCALENDAR
 - ✅ Character encoding preserved (UTF-8)
 - ✅ File is valid iCalendar format
 
-## CalDAV Compatibility Tests
+## CalDAV Compatibility Tests {#standards-compliance}
 
 ### Test 16: Standards Compliance
 **Validation Criteria:**
@@ -381,7 +381,7 @@ END:VCALENDAR
 4. Verify successful sync without errors
 5. Verify tasks appear correctly in CalDAV client
 
-## Error Handling Tests
+## Error Handling Tests {#error-handling-tests}
 
 ### Test 19: Invalid DateTime Input
 **Input:**
@@ -412,7 +412,7 @@ TodoItem(
 - ✅ Maintain proper escaping throughout
 - ✅ Generate valid iCalendar despite size
 
-### Test 21: Empty/Nil Fields Handling
+### Test 21: Empty/Nil Fields Handling {#empty-nil-fields-handling}
 **Input:**
 ```gleam
 TodoItem(
@@ -429,7 +429,7 @@ TodoItem(
 - ✅ Missing optional fields properly omitted from output
 - ✅ Still generate valid iCalendar structure
 
-## Performance Tests
+## Performance Tests {#batch-generation}
 
 ### Test 22: Batch Generation
 **Input:** List of 1000 TodoItems

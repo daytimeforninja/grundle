@@ -19,6 +19,9 @@ pub type WriteError {
 }
 
 /// Convert TodoItem to standards-compliant iCalendar VTODO format
+/// Handles RFC 5545 text escaping and proper field mappings
+/// @spec: test/vtodo_generator_test_spec.md#basic-vtodo-structure
+/// @implements: README.md#section-2.2-vtodo-generation
 pub fn item_to_vtodo(item: TodoItem) -> String {
   let timestamp = format_datetime(birl.utc_now())
   let created = format_datetime(item.created_at)
@@ -86,6 +89,9 @@ pub fn item_to_vtodo(item: TodoItem) -> String {
 }
 
 /// Write TodoItem as .ics file to specified directory
+/// Creates individual iCalendar files for CalDAV sync compatibility
+/// @spec: test/vtodo_generator_test_spec.md#file-output-tests
+/// @implements: README.md#section-3.1-ics-file-generation
 pub fn write_ics_file(
   item: TodoItem,
   directory: String,
@@ -108,6 +114,8 @@ pub fn write_ics_file(
 
 /// Write multiple TodoItems as .ics files to directory
 /// Cleans existing .ics files first to prevent duplicates
+/// @spec: test/vtodo_generator_test_spec.md#batch-generation
+/// @implements: README.md#section-3.2-batch-ics-generation
 pub fn write_ics_files(
   items: List(TodoItem),
   directory: String,
@@ -129,6 +137,9 @@ pub fn write_ics_files(
 }
 
 /// Get filename prefix from UID (first 12 characters before @)
+/// Extracts clean filename from TodoItem UID for .ics file naming
+/// @spec: test/vtodo_generator_test_spec.md#file-output-tests
+/// @implements: README.md#section-3.1-ics-file-generation
 fn get_filename_from_uid(uid: String) -> String {
   case string.split(uid, "@") {
     [prefix, ..] -> prefix
@@ -137,6 +148,9 @@ fn get_filename_from_uid(uid: String) -> String {
 }
 
 /// Clean all existing .ics files from directory to prevent duplicates
+/// Removes all .ics files to ensure clean state before batch generation
+/// @spec: test/vtodo_generator_test_spec.md#batch-generation
+/// @implements: README.md#section-3.2-batch-ics-generation
 fn clean_ics_directory(directory: String) -> Result(Nil, WriteError) {
   case simplifile.read_directory(directory) {
     Ok(files) -> {
@@ -158,6 +172,9 @@ fn clean_ics_directory(directory: String) -> Result(Nil, WriteError) {
 }
 
 /// Ensure directory exists, creating it if necessary
+/// Creates directory structure for ICS file output with error handling
+/// @spec: test/vtodo_generator_test_spec.md#file-output-tests
+/// @implements: README.md#section-3.1-ics-file-generation
 fn ensure_directory_exists(directory: String) -> Result(Nil, WriteError) {
   case simplifile.create_directory_all(directory) {
     Ok(_) -> Ok(Nil)
@@ -168,6 +185,9 @@ fn ensure_directory_exists(directory: String) -> Result(Nil, WriteError) {
 }
 
 /// Escape text for iCalendar format according to RFC 5545
+/// Handles special character escaping for iCalendar text fields
+/// @spec: test/vtodo_generator_test_spec.md#basic-vtodo-structure
+/// @implements: README.md#section-2.2-vtodo-generation
 fn escape_text(text: String) -> String {
   text
   |> string.replace("\\", "\\\\")
@@ -181,6 +201,9 @@ fn escape_text(text: String) -> String {
 }
 
 /// Format Time as iCalendar DATETIME (YYYYMMDDTHHMMSSZ)
+/// Converts Time to RFC 5545 compliant datetime format
+/// @spec: test/vtodo_generator_test_spec.md#basic-vtodo-structure
+/// @implements: README.md#section-2.2-vtodo-generation
 fn format_datetime(time: Time) -> String {
   // Convert to ISO8601 and then to iCalendar format
   let iso = birl.to_iso8601(time)
@@ -196,8 +219,10 @@ fn format_datetime(time: Time) -> String {
   |> string.replace(":", "")
 }
 
-/// Format Time as iCalendar DATE (YYYYMMDD)
 /// Sanitize filename to prevent directory traversal
+/// Removes dangerous characters and path components from filenames
+/// @spec: test/vtodo_generator_test_spec.md#file-output-tests
+/// @implements: README.md#section-5.2-path-security-validation
 fn sanitize_filename(filename: String) -> String {
   filename
   // Remove directory separators and dangerous characters
@@ -230,6 +255,10 @@ fn sanitize_filename(filename: String) -> String {
   |> string.slice(0, 100)
 }
 
+/// Format Time as iCalendar DATE (YYYYMMDD)
+/// Converts Time to RFC 5545 compliant date format
+/// @spec: test/vtodo_generator_test_spec.md#basic-vtodo-structure
+/// @implements: README.md#section-2.2-vtodo-generation
 fn format_date(time: Time) -> String {
   // Convert to ISO date and remove hyphens
   birl.to_iso8601(time)
@@ -240,6 +269,9 @@ fn format_date(time: Time) -> String {
 }
 
 /// Get current date as fallback instead of hardcoded year
+/// Provides dynamic date fallback to prevent hardcoded dates in output
+/// @spec: test/vtodo_generator_test_spec.md#basic-vtodo-structure
+/// @implements: README.md#section-2.2-vtodo-generation
 fn get_current_date_fallback() -> String {
   birl.utc_now()
   |> birl.to_iso8601()

@@ -26,6 +26,9 @@ const section_order = [
 ]
 
 /// Write TodoItems to markdown file with automatic backup
+/// Generates GTD-style todo.md content from TodoItem list
+/// @spec: test/roundtrip_conversion_test_spec.md#markdown-generation
+/// @implements: README.md#section-1.2-markdown-generation
 pub fn write_items_to_file(
   items: List(TodoItem),
   path: String,
@@ -44,6 +47,9 @@ pub fn write_items_to_file(
 }
 
 /// Generate markdown content string from TodoItem list
+/// Reconstructs original markdown format with canonical GTD ordering
+/// @spec: test/roundtrip_conversion_test_spec.md#section-order-normalization
+/// @implements: README.md#section-2.3-content-generation
 pub fn generate_content(items: List(TodoItem)) -> String {
   let sections_dict = group_items_by_section(items)
   let header = "# GTD Todo List\n\n"
@@ -54,6 +60,9 @@ pub fn generate_content(items: List(TodoItem)) -> String {
 }
 
 /// Group TodoItems by section
+/// Creates dictionary mapping section names to their TodoItem lists
+/// @spec: test/roundtrip_conversion_test_spec.md#section-order-normalization
+/// @implements: README.md#section-2.3-content-generation
 fn group_items_by_section(items: List(TodoItem)) -> Dict(String, List(TodoItem)) {
   list.fold(items, dict.new(), fn(acc, item) {
     dict.upsert(acc, item.section, fn(existing) {
@@ -66,6 +75,9 @@ fn group_items_by_section(items: List(TodoItem)) -> Dict(String, List(TodoItem))
 }
 
 /// Generate sections content in canonical order
+/// Processes canonical sections first, then adds any custom sections
+/// @spec: test/roundtrip_conversion_test_spec.md#section-order-normalization
+/// @implements: README.md#section-2.3-content-generation
 fn generate_sections(sections_dict: Dict(String, List(TodoItem))) -> String {
   // First, generate canonical sections
   let canonical_sections =
@@ -100,6 +112,9 @@ fn generate_sections(sections_dict: Dict(String, List(TodoItem))) -> String {
 }
 
 /// Format a single section with its items
+/// Creates section header and formats all TodoItems within that section
+/// @spec: test/roundtrip_conversion_test_spec.md#markdown-generation
+/// @implements: README.md#section-2.3-content-generation
 fn format_section(section: String, items: List(TodoItem)) -> String {
   let header = "## " <> section <> "\n"
   let formatted_items =
@@ -113,6 +128,9 @@ fn format_section(section: String, items: List(TodoItem)) -> String {
 }
 
 /// Format single TodoItem as markdown lines
+/// Converts TodoItem to markdown checkbox format with context and dates
+/// @spec: test/roundtrip_conversion_test_spec.md#markdown-generation
+/// @implements: README.md#section-2.3-content-generation
 fn format_item(item: TodoItem) -> String {
   let checkbox = case item.completed {
     True -> "[x]"
@@ -142,6 +160,9 @@ fn format_item(item: TodoItem) -> String {
 }
 
 /// Add date information to summary
+/// Appends due date and start date information to TodoItem summary
+/// @spec: test/roundtrip_conversion_test_spec.md#markdown-generation
+/// @implements: README.md#section-2.3-content-generation
 fn add_dates_to_summary(
   summary: String,
   due_date: Option(Time),
@@ -160,6 +181,9 @@ fn add_dates_to_summary(
 }
 
 /// Format Time as MM/DD for markdown
+/// Converts Time object to MM/DD string format for GTD-style display
+/// @spec: test/roundtrip_conversion_test_spec.md#markdown-generation
+/// @implements: README.md#section-2.3-content-generation
 fn format_date_for_markdown(time: Time) -> String {
   // Convert to ISO8601 and extract date parts
   let iso_date = birl.to_iso8601(time)
@@ -188,6 +212,9 @@ fn format_date_for_markdown(time: Time) -> String {
 }
 
 /// Create timestamped backup of existing file in ~/.cache/grundle
+/// Manages automatic backup creation with 5-backup rotation limit
+/// @spec: test/roundtrip_conversion_test_spec.md#backup-management
+/// @implements: README.md#section-2.3-content-generation
 fn backup_existing_file(path: String) -> Result(Nil, WriteError) {
   case simplifile.is_file(path) {
     Ok(True) -> {
@@ -224,6 +251,9 @@ fn backup_existing_file(path: String) -> Result(Nil, WriteError) {
 }
 
 /// Keep only the 5 most recent backups in cache directory
+/// Removes oldest backups to maintain storage limits and prevent accumulation
+/// @spec: test/roundtrip_conversion_test_spec.md#backup-management
+/// @implements: README.md#section-2.3-content-generation
 fn cleanup_old_backups(
   original_path: String,
   cache_dir: String,
@@ -268,6 +298,9 @@ fn cleanup_old_backups(
 }
 
 /// Ensure ~/.cache/grundle directory exists and return its path
+/// Creates cache directory structure for backup file management
+/// @spec: test/roundtrip_conversion_test_spec.md#backup-management
+/// @implements: README.md#section-2.3-content-generation
 fn ensure_cache_directory() -> Result(String, WriteError) {
   // Try to get HOME environment variable, fallback to current directory
   let home_dir = case envoy.get("HOME") {
@@ -286,6 +319,9 @@ fn ensure_cache_directory() -> Result(String, WriteError) {
 }
 
 /// Sanitize filename for backup to prevent path traversal
+/// Removes dangerous characters and path components for secure backup naming
+/// @spec: test/roundtrip_conversion_test_spec.md#backup-management
+/// @implements: README.md#section-5.2-path-security-validation
 fn sanitize_filename_for_backup(path: String) -> String {
   path
   // Remove directory separators and path components
@@ -318,6 +354,9 @@ fn sanitize_filename_for_backup(path: String) -> String {
 }
 
 /// Generate footer with GTD context reference
+/// Adds GTD methodology footer with context examples and review prompt
+/// @spec: test/roundtrip_conversion_test_spec.md#markdown-generation
+/// @implements: README.md#section-2.3-content-generation
 fn generate_footer() -> String {
   "---\n*Last Weekly Review: [To be filled]*\n*GTD Contexts: @computer, @home, @errands, @calls, @anywhere, @waiting, @shopping, @yurt*\n"
 }
