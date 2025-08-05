@@ -35,7 +35,10 @@ pub type ParseState {
 pub fn parse_file(path: String) -> Result(List(TodoItem), ParseError) {
   case simplifile.read(path) {
     Ok(content) -> Ok(parse_content(content))
-    Error(_) -> Error(FileNotFound(path))
+    Error(simplifile.Enoent) -> Error(FileNotFound("File does not exist: " <> path))
+    Error(simplifile.Eacces) -> Error(FileReadError("Permission denied: " <> path))  
+    Error(simplifile.Eisdir) -> Error(FileReadError("Path is a directory: " <> path))
+    Error(_) -> Error(FileReadError("Unable to read file: " <> path))
   }
 }
 
@@ -44,7 +47,38 @@ pub fn parse_file(path: String) -> Result(List(TodoItem), ParseError) {
 /// @spec: test/markdown_parser_test_spec.md#complex-real-world-examples
 /// @implements: README.md#section-2.1-content-parsing
 pub fn parse_content(content: String) -> List(TodoItem) {
+  // Validate input size to prevent resource exhaustion
+  let content_length = string.length(content)
+  case content_length > 10_000_000 {  // 10MB limit
+    True -> {
+      io.println_error(
+        "Warning: Input content is very large (" <> int.to_string(content_length) <> " characters). Processing may be slow or fail.",
+      )
+    }
+    False -> Nil
+  }
+
   let lines = string.split(content, "\n")
+  
+  // Limit line count to prevent memory issues
+  let line_count = list.length(lines)
+  case line_count > 100_000 {  // 100k lines limit
+    True -> {
+      io.println_error(
+        "Warning: Input has many lines (" <> int.to_string(line_count) <> "). Processing first 100,000 lines only.",
+      )
+      let limited_lines = list.take(lines, 100_000)
+      parse_lines(limited_lines)
+    }
+    False -> parse_lines(lines)
+  }
+}
+
+/// Internal function to parse a list of lines into TodoItems
+/// Separated for better resource limit handling
+/// @spec: test/markdown_parser_test_spec.md#basic-task-parsing
+/// @implements: README.md#section-2.1-content-parsing
+fn parse_lines(lines: List(String)) -> List(TodoItem) {
   let initial_state =
     ParseState(
       current_section: "Inbox",
@@ -56,8 +90,20 @@ pub fn parse_content(content: String) -> List(TodoItem) {
 
   // Add any remaining current_item to completed list (with proper note reversal)
   let final_state_with_item = add_current_item_to_completed(final_state)
-  final_state_with_item.completed_items
-  |> list.reverse()
+  let items = final_state_with_item.completed_items |> list.reverse()
+  
+  // Warn if we have an unusually large number of tasks
+  let item_count = list.length(items)
+  case item_count > 10_000 {
+    True -> {
+      io.println_error(
+        "Warning: Processed " <> int.to_string(item_count) <> " tasks. Large numbers of tasks may impact performance.",
+      )
+    }
+    False -> Nil
+  }
+  
+  items
 }
 
 /// Process a single line and update parse state
@@ -104,8 +150,12 @@ fn process_line(state: ParseState, line: String) -> ParseState {
                       let truncated_note = case
                         string.length(note_text) > 1000
                       {
-                        True ->
+                        True -> {
+                          io.println_error(
+                            "Warning: Note truncated from " <> int.to_string(string.length(note_text)) <> " to 1000 characters in task: " <> string.slice(item.summary, 0, 50) <> "..."
+                          )
                           string.slice(note_text, 0, 1000) <> "... (truncated)"
+                        }
                         False -> note_text
                       }
                       let updated_item =
@@ -314,8 +364,8 @@ fn is_valid_day(year: Int, month: Int, day: Int) -> Bool {
   }
 }
 
-/// Parse MM/DD date strings into Time objects with current year inference
-/// Handles date validation including leap years and month-specific day limits
+/// Parse MM/DD date strings into Time objects with smart year inference
+/// Handles date validation, leap years, and year boundary edge cases
 /// @spec: test/markdown_parser_test_spec.md#complex-real-world-examples
 /// @implements: README.md#section-2.1-content-parsing
 fn parse_date_string(date_str: String) -> Option(Time) {
@@ -323,11 +373,34 @@ fn parse_date_string(date_str: String) -> Option(Time) {
     [month_str, day_str] -> {
       case int.parse(month_str), int.parse(day_str) {
         Ok(month), Ok(day) if month >= 1 && month <= 12 -> {
-          // Extract current year from system time
+          // Smart year inference to handle year boundaries
           let current_time = birl.utc_now()
-          let current_year = birl.get_day(current_time).year
+          let current_day = birl.get_day(current_time)
+          let current_year = current_day.year
+          let current_month = current_day.month
+          
+          // If date is more than 6 months in the past, assume next year
+          // If date is more than 6 months in the future, assume last year
+          let inferred_year = case month {
+            // Date is in past months - check if it's too far back
+            m if m < current_month -> {
+              case current_month - m > 6 {
+                True -> current_year + 1  // Assume next year
+                False -> current_year     // Same year
+              }
+            }
+            // Date is in future months - check if it's too far ahead  
+            m if m > current_month -> {
+              case m - current_month > 6 {
+                True -> current_year - 1  // Assume last year
+                False -> current_year     // Same year
+              }
+            }
+            // Same month - use current year
+            _ -> current_year
+          }
 
-          case is_valid_day(current_year, month, day) {
+          case is_valid_day(inferred_year, month, day) {
             False -> None
             True -> {
               // Create ISO date string
@@ -341,7 +414,7 @@ fn parse_date_string(date_str: String) -> Option(Time) {
               }
 
               let date_string =
-                int.to_string(current_year)
+                int.to_string(inferred_year)
                 <> "-"
                 <> month_padded
                 <> "-"

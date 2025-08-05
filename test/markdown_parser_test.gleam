@@ -307,7 +307,7 @@ pub fn parse_file_not_found_test() {
   
   case result {
     Error(markdown_parser.FileNotFound(path)) -> {
-      path |> should.equal("/nonexistent/file.md")
+      path |> should.equal("File does not exist: /nonexistent/file.md")
     }
     _ -> should.fail()
   }

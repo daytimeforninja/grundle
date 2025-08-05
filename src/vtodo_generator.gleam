@@ -5,6 +5,7 @@
 // Handles RFC 5545 compliance, text escaping, and proper field mappings.
 
 import birl.{type Time}
+import gleam/int
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/result
@@ -273,9 +274,23 @@ fn format_date(time: Time) -> String {
 /// @spec: test/vtodo_generator_test_spec.md#basic-vtodo-structure
 /// @implements: README.md#section-2.2-vtodo-generation
 fn get_current_date_fallback() -> String {
-  birl.utc_now()
-  |> birl.to_iso8601()
-  |> string.split("T")
-  |> list.first()
-  |> result.unwrap("2024-01-01")
+  let now = birl.utc_now()
+  let iso_date = birl.to_iso8601(now)
+  case string.split(iso_date, "T") {
+    [date, ..] -> date
+    [] -> {
+      // Absolute fallback - construct current date manually if ISO parsing fails
+      let day = birl.get_day(now)
+      let year_str = int.to_string(day.year)
+      let month_str = case day.month < 10 {
+        True -> "0" <> int.to_string(day.month) 
+        False -> int.to_string(day.month)
+      }
+      let day_str = case day.date < 10 {
+        True -> "0" <> int.to_string(day.date)
+        False -> int.to_string(day.date)  
+      }
+      year_str <> "-" <> month_str <> "-" <> day_str
+    }
+  }
 }

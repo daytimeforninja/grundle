@@ -51,7 +51,7 @@ pub fn parse_ics_file_not_found_test() {
   // Test error handling for missing file
   case vtodo_parser.parse_ics_file("/nonexistent/file.ics") {
     Error(vtodo_parser.FileNotFound(path)) -> {
-      path |> should.equal("/nonexistent/file.ics")
+      path |> should.equal("ICS file does not exist: /nonexistent/file.ics")
     }
     _ -> should.fail()
   }

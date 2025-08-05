@@ -23,6 +23,11 @@ import vtodo_parser
 /// @implements: README.md#section-1.0-cli-interface
 pub fn main() {
   case argv.load().arguments {
+    // Handle help flags first, before checking environment variables
+    ["--help"] -> print_usage()
+    ["-h"] -> print_usage()
+    ["help"] -> print_usage()
+    
     [] -> {
       case envoy.get("GRUNDLE_TODO"), envoy.get("GRUNDLE_VTODO") {
         Ok(todo_path), Ok(ics_dir) -> {
@@ -44,8 +49,6 @@ pub fn main() {
         }
       }
     }
-    ["--help"] -> print_usage()
-    ["-h"] -> print_usage()
 
     // Convert todo.md to ICS files
     [input_file, "--to-ics", output_dir] -> {

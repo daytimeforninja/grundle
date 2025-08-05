@@ -28,7 +28,10 @@ pub type ParseError {
 pub fn parse_ics_file(path: String) -> Result(TodoItem, ParseError) {
   case simplifile.read(path) {
     Ok(content) -> parse_ics_content(content)
-    Error(_) -> Error(FileNotFound(path))
+    Error(simplifile.Enoent) -> Error(FileNotFound("ICS file does not exist: " <> path))
+    Error(simplifile.Eacces) -> Error(FileNotFound("Permission denied accessing ICS file: " <> path))
+    Error(simplifile.Eisdir) -> Error(FileNotFound("Path is a directory, not ICS file: " <> path))
+    Error(_) -> Error(FileNotFound("Unable to read ICS file: " <> path))
   }
 }
 
@@ -48,8 +51,9 @@ pub fn parse_ics_content(content: String) -> Result(TodoItem, ParseError) {
   extract_vtodo_properties(lines)
 }
 
-/// Parse entire directory of .ics files into TodoItem list
-/// Supports vdirsyncer workflow with graceful error handling
+/// Parse entire directory of .ics files into TodoItem list (permissive mode)
+/// Permissive mode: Logs parse errors but continues processing valid files
+/// Use for production workflows where some invalid files are acceptable
 /// @spec: test/roundtrip_conversion_test_spec.md#integration-tests
 /// @implements: README.md#section-3.3-directory-parsing
 pub fn parse_ics_directory(
@@ -58,8 +62,9 @@ pub fn parse_ics_directory(
   parse_ics_directory_with_mode(directory, False)
 }
 
-/// Parse entire directory of .ics files with configurable error handling
-/// Strict mode for validation pipelines, fails fast on any parse error
+/// Parse entire directory of .ics files with strict error handling
+/// Strict mode: Fails immediately on any parse error, no partial results
+/// Use for validation pipelines where data integrity is critical
 /// @spec: test/vtodo_generator_test_spec.md#error-handling-tests
 /// @implements: README.md#section-3.4-strict-directory-parsing
 pub fn parse_ics_directory_strict(
