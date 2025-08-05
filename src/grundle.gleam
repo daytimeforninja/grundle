@@ -154,8 +154,8 @@ fn get_sync_direction(todo_file: String, ics_dir: String) -> SyncDirection {
   // Get file info atomically to reduce TOCTOU race conditions
   case simplifile.file_info(todo_file), get_newest_ics_mtime(ics_dir) {
     Ok(todo_info), Ok(ics_mtime) -> {
-      // Add small buffer (1 second) to handle filesystem timestamp precision
-      case int.compare(todo_info.mtime_seconds, ics_mtime + 1) {
+      // Compare timestamps directly - modern filesystems have sufficient precision
+      case int.compare(todo_info.mtime_seconds, ics_mtime) {
         order.Gt -> ToIcs
         order.Lt -> FromIcs
         order.Eq -> NoSync
@@ -244,27 +244,39 @@ fn validate_env_paths(
 
 /// Validate a single path for security concerns
 fn validate_single_path(path: String) -> Result(String, String) {
+  // First expand tilde if present
+  let expanded_path = case string.starts_with(path, "~/") {
+    True -> {
+      case envoy.get("HOME") {
+        Ok(home) -> home <> string.drop_start(path, 1)
+        Error(_) -> path
+        // Fallback to original path if HOME not set
+      }
+    }
+    False -> path
+  }
+
   // Check for obvious security issues
-  case string.contains(path, "..") {
+  case string.contains(expanded_path, "..") {
     True -> Error("Path contains directory traversal components")
     False -> {
-      case string.starts_with(path, "/") {
+      case string.starts_with(expanded_path, "/") {
         True -> {
           // Absolute paths - ensure they're in reasonable locations
           case
-            string.starts_with(path, "/tmp")
-            || string.starts_with(path, "/var/tmp")
-            || string.starts_with(path, "/etc")
-            || string.starts_with(path, "/root")
-            || string.starts_with(path, "/boot")
+            string.starts_with(expanded_path, "/tmp")
+            || string.starts_with(expanded_path, "/var/tmp")
+            || string.starts_with(expanded_path, "/etc")
+            || string.starts_with(expanded_path, "/root")
+            || string.starts_with(expanded_path, "/boot")
           {
             True -> Error("Path points to restricted system directory")
-            False -> Ok(path)
+            False -> Ok(expanded_path)
           }
         }
         False -> {
-          // Relative paths and home paths (~) are generally safer
-          Ok(path)
+          // Relative paths are generally safer
+          Ok(expanded_path)
         }
       }
     }

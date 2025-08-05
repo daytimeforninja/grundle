@@ -47,15 +47,16 @@ When adding features:
 - `test/roundtrip_conversion_test_spec.md` - Roundtrip integrity specs  
 - `test/vtodo_generator_test_spec.md` - VTODO generation specs
 
-### Security Status (v0.4.0)
+### Security Status (v0.4.1)
 All security vulnerabilities have been comprehensively addressed:
 
 **CRITICAL (Fixed):**
 - ✅ Path traversal in backup system - comprehensive filename sanitization
 - ✅ Unvalidated file paths - added strict path validation with allowlist approach
+- ✅ Tilde expansion vulnerability - added secure home directory expansion
 
 **HIGH (Fixed):**
-- ✅ Race conditions in sync - atomic file operations with timestamp buffering
+- ✅ Race conditions in sync - atomic file operations (timestamp buffer removed)
 - ✅ Date validation gaps - comprehensive validation in all parsers (Feb 31st, etc.)
 - ✅ Resource exhaustion - limits on note count (100) and length (1000 chars)
 
@@ -63,13 +64,18 @@ All security vulnerabilities have been comprehensively addressed:
 - ✅ Silent error handling - configurable strict/permissive modes
 - ✅ Directory traversal in ICS operations - filename sanitization for UIDs
 - ✅ Information leakage - sanitized error messages and logging
+- ✅ Sync failure with tilde paths - path expansion now works correctly
 
 **LOW (Fixed):**
-- ✅ Environment variable validation - path safety checks
+- ✅ Environment variable validation - path safety checks with tilde expansion
 - ✅ Hardcoded fallback dates - dynamic date generation
 - ✅ Input length limits - comprehensive bounds checking
 
 **Security Level: PRODUCTION READY** - All vulnerabilities patched with defense-in-depth approach.
+
+### Recent Bug Fixes (v0.4.1)
+- **Fixed sync failure**: Tilde expansion (`~/path`) now works correctly in environment variables
+- **Improved timestamp handling**: Removed 1-second buffer that could prevent edge-case syncs
 
 ### Project Structure
 - `src/` - Main Gleam source code
